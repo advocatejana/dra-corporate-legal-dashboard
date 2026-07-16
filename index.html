@@ -18231,7 +18231,7 @@ function computeScore(task) {
         }
         points += itemPoints * wt;
     });
-    supportDone.forEach(i => { const wt = WORK_TYPE_WEIGHT[effectiveWorkType(i)] || 1; points += 5 * wt; breakdown.supportCompleted++; });
+    supportDone.forEach(i => { const wt = WORK_TYPE_WEIGHT[effectiveSupWorkType(i, i.__slot)] || 1; points += 5 * wt; breakdown.supportCompleted++; });
     const s = Math.max(0, Math.min(100, Math.round(50 + points)));
     const g = gradeOf(s);
     return { score: s, grade: g, label: labels[g] || "", breakdown, doneCount: doneItems.length, supportCount: supportItems.length, supportDoneCount: supportDone.length };
@@ -18364,6 +18364,20 @@ function setWorkType(tid, iid, type) {
     localStorage.setItem(TK, JSON.stringify(next));
     _listeners.forEach(l => l());
 }
+function effectiveSupWorkType(item, slot) { return (item.supWorkType && item.supWorkType[slot]) || effectiveWorkType(item); }
+function setSupWorkType(tid, iid, slot, type) {
+    const tasks = readTasks();
+    let touched = null;
+    tasks.forEach(t => t.items.forEach(i => { if (i.id === iid)
+        touched = i; }));
+    if (!touched)
+        return;
+    const origId = touched.linkedFrom ? touched.linkedFrom : iid;
+    const relatedIds = new Set([origId, `${origId}__linked`, `${origId}__linked1`, `${origId}__linked2`]);
+    const next = tasks.map(t => (Object.assign(Object.assign({}, t), { items: t.items.map(i => relatedIds.has(i.id) ? Object.assign(Object.assign({}, i), { supWorkType: Object.assign(Object.assign({}, i.supWorkType), { [slot]: type || null }) }) : i) })));
+    localStorage.setItem(TK, JSON.stringify(next));
+    _listeners.forEach(l => l());
+}
 function toggleSupportDone(tid, iid, memberId) {
     const tasks = readTasks();
     let touched = null;
@@ -18412,7 +18426,7 @@ function updateItemPartner(tid, iid, field, value) {
     _listeners.forEach(l => l());
 }
 function latestTaskFor(tasks, memberId) { const mine = tasks.filter(t => t.memberId === memberId); if (!mine.length) return undefined; return mine.reduce((a, b) => parseDMY(b.date) >= parseDMY(a.date) ? b : a); }
-function monthlyTaskFor(tasks, memberId) { const mine = tasks.filter(t => t.memberId === memberId && isInCurrentMonth(t.date)); const supportItems = tasks.flatMap(t => t.items.filter(i => !i.linkedFrom && i.accountable !== memberId && [i.supporting, i.supporting2, i.supporting3].includes(memberId))).filter(i => { const doneDate = i.supDoneDate && i.supDoneDate[memberId]; return doneDate ? isInCurrentMonth(doneDate) : isInCurrentMonth((tasks.find(t => t.items.some(x => x.id === i.id)) || {}).date); }); if (!mine.length) { const latest = latestTaskFor(tasks, memberId); return latest ? Object.assign(Object.assign({}, latest), { supportItems }) : latest; } const items = mine.flatMap(t => t.items.filter(i => !i.linkedFrom)); return { id: `${memberId}-month`, memberId, date: "This Month", submittedAt: "", items, supportItems }; }
+function monthlyTaskFor(tasks, memberId) { const mine = tasks.filter(t => t.memberId === memberId && isInCurrentMonth(t.date)); const supportItems = tasks.flatMap(t => t.items.filter(i => !i.linkedFrom && i.accountable !== memberId && [i.supporting, i.supporting2, i.supporting3].includes(memberId))).map(i => Object.assign(Object.assign({}, i), { __slot: i.supporting === memberId ? "supporting" : i.supporting2 === memberId ? "supporting2" : "supporting3" })).filter(i => { const doneDate = i.supDoneDate && i.supDoneDate[memberId]; return doneDate ? isInCurrentMonth(doneDate) : isInCurrentMonth((tasks.find(t => t.items.some(x => x.id === i.id)) || {}).date); }); if (!mine.length) { const latest = latestTaskFor(tasks, memberId); return latest ? Object.assign(Object.assign({}, latest), { supportItems }) : latest; } const items = mine.flatMap(t => t.items.filter(i => !i.linkedFrom)); return { id: `${memberId}-month`, memberId, date: "This Month", submittedAt: "", items, supportItems }; }
 function cycleStatus(s) { return s === "Planned" ? "In Progress" : s === "In Progress" ? "Done" : "Planned"; }
 // ── RESOLUTION BOARD (full governance record) ────────────────────────────
 const RES_STATUSES = ["Draft", "Assigned", "In Progress", "Paused", "Awaiting Information", "Awaiting Approval", "Escalated", "Completed", "Verified", "Closed"];
@@ -20030,8 +20044,8 @@ function DailyTasks({ session, initialFilter, onFilterConsumed } = {}) {
                                             notifySupportingMapped(i, t.date, newVal); }, style: { width: "auto", padding: "2px 6px", fontSize: 10, borderRadius: 6, border: "1px solid rgba(201,162,39,.25)", background: "rgba(0,0,0,.3)", color: "#e8dfc0" } },
                                         React.createElement("option", { value: "" }, "None"),
                                         MEMBERS.filter(mm => mm.id !== i.accountable && mm.id !== i.supporting && mm.id !== i.supporting2 && mm.id !== i.supporting3 || mm.id === i[slot]).map(mm => React.createElement("option", { key: mm.id, value: mm.id }, mm.short))),
-                                    i[slot] && (() => { const wtv = effectiveWorkType(i); return React.createElement("button", { title: "External work (commute, risk, money handled) is weighted 1.5\u00D7 in appraisal scoring. Tap to switch.", onClick: () => setWorkType(t.id, i.id, wtv === "external" ? "internal" : "external"), style: { border: `1px solid ${wtv === "external" ? "rgba(244,162,97,.5)" : "rgba(138,155,188,.3)"}`, background: wtv === "external" ? "rgba(244,162,97,.15)" : "transparent", color: wtv === "external" ? "#f4a261" : "#8a9bbc", borderRadius: 10, padding: "1px 6px", fontSize: 9, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit" } }, wtv === "external" ? "\uD83D\uDE97" : "\uD83C\uDFE2"); })(),
-                                    React.createElement("button", { title: "Support Team Matchmaker \u2014 suggest the best-fit partner for this task", onClick: () => setMatchFor({ tid: t.id, iid: i.id, slot, accountable: i.accountable, text: i.text, exclude: [i.supporting, i.supporting2, i.supporting3].filter(Boolean), workType: effectiveWorkType(i) }), style: { border: "none", background: "transparent", cursor: "pointer", fontSize: 12, padding: 0 } }, "\uD83C\uDFAF"),
+                                    i[slot] && (() => { const wtv = effectiveSupWorkType(i, slot); return React.createElement("button", { title: "External work (commute, risk, money handled) is weighted 1.5\u00D7 in appraisal scoring for this specific support assignment. Tap to switch.", onClick: () => setSupWorkType(t.id, i.id, slot, wtv === "external" ? "internal" : "external"), style: { border: `1px solid ${wtv === "external" ? "rgba(244,162,97,.5)" : "rgba(138,155,188,.3)"}`, background: wtv === "external" ? "rgba(244,162,97,.15)" : "transparent", color: wtv === "external" ? "#f4a261" : "#8a9bbc", borderRadius: 10, padding: "1px 6px", fontSize: 9, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit" } }, wtv === "external" ? "\uD83D\uDE97" : "\uD83C\uDFE2"); })(),
+                                    React.createElement("button", { title: "Support Team Matchmaker \u2014 suggest the best-fit partner for this task", onClick: () => setMatchFor({ tid: t.id, iid: i.id, slot, accountable: i.accountable, text: i.text, exclude: [i.supporting, i.supporting2, i.supporting3].filter(Boolean), workType: effectiveSupWorkType(i, slot) }), style: { border: "none", background: "transparent", cursor: "pointer", fontSize: 12, padding: 0 } }, "\uD83C\uDFAF"),
                                     i[slot] && React.createElement("button", { title: "Send reminder via WhatsApp + Email", onClick: () => { incrementReminderCount(t.id, i.id); remindTaskPartner(i[slot], i, t.date); }, style: { border: "none", background: "transparent", cursor: "pointer", fontSize: 12, padding: 0 } }, "\uD83D\uDD14"),
                                     i[slot] && React.createElement("span", { style: { fontSize: 10 } }, (i.supDone && i.supDone[i[slot]]) ? "\u2705" : "\u23F3"))))))); })));
             }),
@@ -20052,7 +20066,7 @@ function DailyTasks({ session, initialFilter, onFilterConsumed } = {}) {
                     candidates.slice(0, 5).map((c, idx) => React.createElement("div", { key: c.id, style: { border: "1px solid rgba(201,162,39,.2)", borderRadius: 8, padding: 10, marginBottom: 8, background: idx === 0 ? "rgba(201,162,39,.08)" : "transparent" } },
                         React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 } },
                             React.createElement("div", { style: { fontWeight: 700, fontSize: 13, color: idx === 0 ? "#f0c040" : "#e8dfc0" } }, idx === 0 ? "\u2B50 " : "", c.name),
-                            React.createElement("button", { className: "gold-btn", style: { fontSize: 10, padding: "4px 12px" }, onClick: () => { updateItemPartner(matchFor.tid, matchFor.iid, matchFor.slot, c.id); setWorkType(matchFor.tid, matchFor.iid, matchFor.workType); notifySupportingMapped({ text: matchFor.text, accountable: matchFor.accountable, status: "In Progress" }, todayDMY(), c.id); setMatchFor(null); } }, "Assign")),
+                            React.createElement("button", { className: "gold-btn", style: { fontSize: 10, padding: "4px 12px" }, onClick: () => { updateItemPartner(matchFor.tid, matchFor.iid, matchFor.slot, c.id); setSupWorkType(matchFor.tid, matchFor.iid, matchFor.slot, matchFor.workType); notifySupportingMapped({ text: matchFor.text, accountable: matchFor.accountable, status: "In Progress" }, todayDMY(), c.id); setMatchFor(null); } }, "Assign")),
                         React.createElement("div", { style: { fontSize: 10, color: "#8a9bbc" } }, c.role),
                         React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6 } }, c.reasons.map((r, ri) => React.createElement("span", { key: ri, style: { fontSize: 9, background: "rgba(201,162,39,.1)", border: "1px solid rgba(201,162,39,.25)", borderRadius: 10, padding: "2px 8px", color: "#c9a227" } }, r.icon, " ", r.text)))),
                     candidates.length === 0 && React.createElement("div", { style: { textAlign: "center", color: "#8a9bbc", fontSize: 12, padding: 16 } }, "No available candidates \u2014 everyone eligible is already assigned to this task."))));
