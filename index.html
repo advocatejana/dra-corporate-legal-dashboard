@@ -18043,6 +18043,10 @@ const MEMBER_KRA = {
 // ── HELPERS ──────────────────────────────────────────────────────────
 const HIGH_KWS = ["registration", " tp ", "token", "apf", "icici", "hdfc", "sbi", "axis", "indian bank", "mom", "gift deed", "tnregnet", "handing over", "deadline", "finalize", "truliv", "navalur", "scheduled"];
 const MED_KWS = ["coordinate", "verify", "review", "follow up", "booking", "allotment", "noc", "skylantis", "urbania", "karanai", "marina", "cove"];
+const EXTERNAL_KWS = ["registration", "sub-registrar", "sro", "bank", "icici", "hdfc", "sbi", "axis", "indian bank", "apf", "tnrera", "dtcp", "cmda", "court", "tribunal", "panel advocate", "notary", "visit", "neelankarai", "navalur", "virugambakkam", "avadi", "hand over", "handing over", "meeting with", "attend"];
+function detectWorkType(text) { const t = ` ${(text || "").toLowerCase()} `; return EXTERNAL_KWS.some(k => t.includes(k)) ? "external" : "internal"; }
+const WORK_TYPE_WEIGHT = { internal: 1, external: 1.5 };
+function effectiveWorkType(item) { return item.workType || detectWorkType(item.text); }
 function detectPriority(text) { const t = ` ${text.toLowerCase()} `; if (HIGH_KWS.some(k => t.includes(k)))
     return "HIGH"; if (MED_KWS.some(k => t.includes(k)))
     return "MED"; return "LOW"; }
@@ -18163,8 +18167,75 @@ function useWorkReports() { const [w, setW] = useState(() => readWorkReports());
 function submitWorkReport(memberId, fields) { const list = readWorkReports(); const date = todayDMY(); const rec = Object.assign({ id: `wr-${memberId}-${Date.now()}`, memberId, date, submittedAt: nowFullStr(), epoch: Date.now(), approvalStatus: "Pending", approvedBy: null, approvedAt: null, linkedResId: null }, fields); list.push(rec); writeWorkReports(list); return rec; }
 function approveWorkReport(id, approverId) { const list = readWorkReports().map(r => r.id === id ? Object.assign(Object.assign({}, r), { approvalStatus: "Approved", approvedBy: approverId || null, approvedAt: nowFullStr() }) : r); writeWorkReports(list); }
 function rejectWorkReport(id, approverId, reason) { const list = readWorkReports().map(r => r.id === id ? Object.assign(Object.assign({}, r), { approvalStatus: "Rejected", approvedBy: approverId || null, approvedAt: nowFullStr(), rejectReason: reason || "" }) : r); writeWorkReports(list); }
-function computeScore(task) { if (!task)
-    return { score: 0, grade: "D", label: "Below Expectations" }; const total = task.items.length || 1; const done = task.items.filter(i => i.status === "Done").length; const s = Math.round((done / total) * 60 + 30); const g = s >= 90 ? "A+" : s >= 80 ? "A" : s >= 70 ? "B+" : s >= 60 ? "B" : s >= 50 ? "C" : "D"; const labels = { "A+": "Outstanding", A: "Exceeds Expectations", "B+": "Meets & Exceeds", B: "Meets Expectations", C: "Needs Improvement", D: "Below Expectations" }; return { score: s, grade: g, label: labels[g] || "" }; }
+function parseAnyDate(s) { if (!s)
+    return 0; if (s.includes(".")) return parseDMY(s); const t = new Date(s).getTime(); return isNaN(t) ? 0 : t; }
+function computeScore(task) {
+    const labels = { "A+": "Outstanding", A: "Exceeds Expectations", "B+": "Meets & Exceeds", B: "Meets Expectations", C: "Needs Improvement", D: "Below Expectations" };
+    const gradeOf = s => s >= 90 ? "A+" : s >= 80 ? "A" : s >= 70 ? "B+" : s >= 60 ? "B" : s >= 50 ? "C" : "D";
+    if (!task || !task.items)
+        return { score: 0, grade: "D", label: labels.D };
+    const doneItems = task.items.filter(i => i.status === "Done");
+    const supportItems = task.supportItems || [];
+    const supportDone = supportItems.filter(i => i.supDone && i.supDone[task.memberId]);
+    if (!doneItems.length && !supportDone.length) {
+        const s = task.items.length || supportItems.length ? 50 : 0;
+        return { score: s, grade: gradeOf(s), label: labels[gradeOf(s)] };
+    }
+    const board = readBoard();
+    let points = 0;
+    const breakdown = { withinTAT: 0, beforeTAT: 0, afterTAT: 0, reminders1: 0, reminders2: 0, errors: 0, initiative: 0, supportCompleted: 0, externalCount: 0, internalCount: 0 };
+    doneItems.forEach(i => {
+        const res = board.find(r => r.linkedItemId === i.id);
+        const wt = WORK_TYPE_WEIGHT[effectiveWorkType(i)] || 1;
+        if (wt > 1)
+            breakdown.externalCount++;
+        else
+            breakdown.internalCount++;
+        let itemPoints = 0;
+        const deadlineMs = res ? (res.deadline ? parseAnyDate(res.deadline) : parseDMY(res.createdDate) + (res.tat || 3) * 86400000) : null;
+        const doneMs = i.doneDate ? parseDMY(i.doneDate) : null;
+        if (deadlineMs && doneMs) {
+            if (doneMs < deadlineMs) {
+                itemPoints += 3;
+                breakdown.beforeTAT++;
+            }
+            else if (doneMs === deadlineMs) {
+                itemPoints += 10;
+                breakdown.withinTAT++;
+            }
+            else {
+                itemPoints += -5;
+                breakdown.afterTAT++;
+            }
+        }
+        else {
+            itemPoints += 10;
+            breakdown.withinTAT++;
+        }
+        const rc = i.reminderCount || 0;
+        if (rc === 1) {
+            itemPoints += -2;
+            breakdown.reminders1++;
+        }
+        else if (rc >= 2) {
+            itemPoints += -4;
+            breakdown.reminders2++;
+        }
+        if (i.hasError) {
+            itemPoints += -5;
+            breakdown.errors++;
+        }
+        if (res && res.auto === false) {
+            itemPoints += 5;
+            breakdown.initiative++;
+        }
+        points += itemPoints * wt;
+    });
+    supportDone.forEach(i => { const wt = WORK_TYPE_WEIGHT[effectiveWorkType(i)] || 1; points += 5 * wt; breakdown.supportCompleted++; });
+    const s = Math.max(0, Math.min(100, Math.round(50 + points)));
+    const g = gradeOf(s);
+    return { score: s, grade: g, label: labels[g] || "", breakdown, doneCount: doneItems.length, supportCount: supportItems.length, supportDoneCount: supportDone.length };
+}
 const GRADE_COLOR = { "A+": "#06d6a0", "A": "#2a9d8f", "B+": "#c9a227", "B": "#f4a261", "C": "#e07b39", "D": "#e63946" };
 const RECOMMENDATIONS = { "A+": "Increment + recognition", "A": "Standard increment", "B+": "Standard increment", "B": "Review KPI targets", "C": "PIP review recommended", "D": "PIP mandatory" };
 // ── PROMOTION LADDER ──────────────────────────────────────────────────
@@ -18228,14 +18299,69 @@ function updateTaskStatus(tid, iid, status) {
     const tasks = readTasks();
     let touched = null;
     let next = tasks.map(t => t.id !== tid ? t : Object.assign(Object.assign({}, t), { items: t.items.map(i => { if (i.id !== iid)
-            return i; touched = i; return Object.assign(Object.assign({}, i), { status }); }) }));
+            return i; touched = i; return Object.assign(Object.assign({}, i), { status, doneDate: status === "Done" ? todayDMY() : (status === "In Progress" || status === "Planned" ? null : i.doneDate) }); }) }));
     if (touched) {
         const origId = touched.linkedFrom ? touched.linkedFrom : iid;
         const relatedIds = new Set([origId, `${origId}__linked`, `${origId}__linked1`, `${origId}__linked2`]);
-        next = next.map(t => (Object.assign(Object.assign({}, t), { items: t.items.map(i => relatedIds.has(i.id) ? Object.assign(Object.assign({}, i), { status }) : i) })));
+        const doneDateVal = status === "Done" ? todayDMY() : (status === "In Progress" || status === "Planned" ? null : undefined);
+        next = next.map(t => (Object.assign(Object.assign({}, t), { items: t.items.map(i => relatedIds.has(i.id) ? Object.assign(Object.assign({}, i), { status }, doneDateVal !== undefined ? { doneDate: doneDateVal } : {}) : i) })));
     }
     localStorage.setItem(TK, JSON.stringify(next));
     seedBoardFromTasks();
+    _listeners.forEach(l => l());
+}
+function incrementReminderCount(tid, iid) {
+    const tasks = readTasks();
+    let touched = null;
+    tasks.forEach(t => t.items.forEach(i => { if (i.id === iid)
+        touched = i; }));
+    if (!touched)
+        return;
+    const origId = touched.linkedFrom ? touched.linkedFrom : iid;
+    const relatedIds = new Set([origId, `${origId}__linked`, `${origId}__linked1`, `${origId}__linked2`]);
+    const next = tasks.map(t => (Object.assign(Object.assign({}, t), { items: t.items.map(i => relatedIds.has(i.id) ? Object.assign(Object.assign({}, i), { reminderCount: (i.reminderCount || 0) + 1 }) : i) })));
+    localStorage.setItem(TK, JSON.stringify(next));
+    _listeners.forEach(l => l());
+}
+function toggleErrorFlag(tid, iid) {
+    const tasks = readTasks();
+    let touched = null;
+    tasks.forEach(t => t.items.forEach(i => { if (i.id === iid)
+        touched = i; }));
+    if (!touched)
+        return;
+    const origId = touched.linkedFrom ? touched.linkedFrom : iid;
+    const relatedIds = new Set([origId, `${origId}__linked`, `${origId}__linked1`, `${origId}__linked2`]);
+    const wasFlagged = !!touched.hasError;
+    const next = tasks.map(t => (Object.assign(Object.assign({}, t), { items: t.items.map(i => relatedIds.has(i.id) ? Object.assign(Object.assign({}, i), { hasError: !wasFlagged }) : i) })));
+    localStorage.setItem(TK, JSON.stringify(next));
+    _listeners.forEach(l => l());
+}
+const DEP_TAGS = { external: { label: "Waiting on External Party", icon: "\u23F3", color: "#f4a261" }, workhall: { label: "Tracked in WorkHall", icon: "\uD83D\uDCCB", color: "#3b82f6" } };
+function setDependencyTag(tid, iid, tag) {
+    const tasks = readTasks();
+    let touched = null;
+    tasks.forEach(t => t.items.forEach(i => { if (i.id === iid)
+        touched = i; }));
+    if (!touched)
+        return;
+    const origId = touched.linkedFrom ? touched.linkedFrom : iid;
+    const relatedIds = new Set([origId, `${origId}__linked`, `${origId}__linked1`, `${origId}__linked2`]);
+    const next = tasks.map(t => (Object.assign(Object.assign({}, t), { items: t.items.map(i => relatedIds.has(i.id) ? Object.assign(Object.assign({}, i), { depTag: tag || null }) : i) })));
+    localStorage.setItem(TK, JSON.stringify(next));
+    _listeners.forEach(l => l());
+}
+function setWorkType(tid, iid, type) {
+    const tasks = readTasks();
+    let touched = null;
+    tasks.forEach(t => t.items.forEach(i => { if (i.id === iid)
+        touched = i; }));
+    if (!touched)
+        return;
+    const origId = touched.linkedFrom ? touched.linkedFrom : iid;
+    const relatedIds = new Set([origId, `${origId}__linked`, `${origId}__linked1`, `${origId}__linked2`]);
+    const next = tasks.map(t => (Object.assign(Object.assign({}, t), { items: t.items.map(i => relatedIds.has(i.id) ? Object.assign(Object.assign({}, i), { workType: type || null }) : i) })));
+    localStorage.setItem(TK, JSON.stringify(next));
     _listeners.forEach(l => l());
 }
 function toggleSupportDone(tid, iid, memberId) {
@@ -18248,7 +18374,8 @@ function toggleSupportDone(tid, iid, memberId) {
     const origId = touched.linkedFrom ? touched.linkedFrom : iid;
     const relatedIds = new Set([origId, `${origId}__linked`, `${origId}__linked1`, `${origId}__linked2`]);
     const wasDone = !!(touched.supDone && touched.supDone[memberId]);
-    const next = tasks.map(t => (Object.assign(Object.assign({}, t), { items: t.items.map(i => relatedIds.has(i.id) ? Object.assign(Object.assign({}, i), { supDone: Object.assign(Object.assign({}, i.supDone), { [memberId]: !wasDone }) }) : i) })));
+    const nowDone = !wasDone;
+    const next = tasks.map(t => (Object.assign(Object.assign({}, t), { items: t.items.map(i => relatedIds.has(i.id) ? Object.assign(Object.assign({}, i), { supDone: Object.assign(Object.assign({}, i.supDone), { [memberId]: nowDone }), supDoneDate: Object.assign(Object.assign({}, i.supDoneDate), { [memberId]: nowDone ? todayDMY() : null }) }) : i) })));
     localStorage.setItem(TK, JSON.stringify(next));
     _listeners.forEach(l => l());
 }
@@ -18285,7 +18412,7 @@ function updateItemPartner(tid, iid, field, value) {
     _listeners.forEach(l => l());
 }
 function latestTaskFor(tasks, memberId) { const mine = tasks.filter(t => t.memberId === memberId); if (!mine.length) return undefined; return mine.reduce((a, b) => parseDMY(b.date) >= parseDMY(a.date) ? b : a); }
-function monthlyTaskFor(tasks, memberId) { const mine = tasks.filter(t => t.memberId === memberId && isInCurrentMonth(t.date)); if (!mine.length) return latestTaskFor(tasks, memberId); const items = mine.flatMap(t => t.items.filter(i => !i.linkedFrom)); return { id: `${memberId}-month`, memberId, date: "This Month", submittedAt: "", items }; }
+function monthlyTaskFor(tasks, memberId) { const mine = tasks.filter(t => t.memberId === memberId && isInCurrentMonth(t.date)); const supportItems = tasks.flatMap(t => t.items.filter(i => !i.linkedFrom && i.accountable !== memberId && [i.supporting, i.supporting2, i.supporting3].includes(memberId))).filter(i => { const doneDate = i.supDoneDate && i.supDoneDate[memberId]; return doneDate ? isInCurrentMonth(doneDate) : isInCurrentMonth((tasks.find(t => t.items.some(x => x.id === i.id)) || {}).date); }); if (!mine.length) { const latest = latestTaskFor(tasks, memberId); return latest ? Object.assign(Object.assign({}, latest), { supportItems }) : latest; } const items = mine.flatMap(t => t.items.filter(i => !i.linkedFrom)); return { id: `${memberId}-month`, memberId, date: "This Month", submittedAt: "", items, supportItems }; }
 function cycleStatus(s) { return s === "Planned" ? "In Progress" : s === "In Progress" ? "Done" : "Planned"; }
 // ── RESOLUTION BOARD (full governance record) ────────────────────────────
 const RES_STATUSES = ["Draft", "Assigned", "In Progress", "Paused", "Awaiting Information", "Awaiting Approval", "Escalated", "Completed", "Verified", "Closed"];
@@ -18382,6 +18509,54 @@ function suggestPartnerByRR(accountableId, taskText) {
     });
     return bestScore > 0 ? best : null;
 }
+function rankSupportCandidates(accountableId, taskText, excludeIds, workType) {
+    const tasks = readTasks();
+    const openCount = {};
+    const externalLoad = {};
+    MEMBERS.forEach(m => { openCount[m.id] = 0; externalLoad[m.id] = 0; });
+    tasks.forEach(t => { const inMonth = isInCurrentMonth(t.date); t.items.forEach(i => {
+        if (i.status !== "Done") {
+            [i.accountable, i.supporting, i.supporting2, i.supporting3].forEach(id => { if (id && openCount[id] !== undefined)
+                openCount[id]++; });
+        }
+        if (inMonth && !i.linkedFrom && effectiveWorkType(i) === "external") {
+            [i.accountable, i.supporting, i.supporting2, i.supporting3].forEach(id => { if (id && externalLoad[id] !== undefined)
+                externalLoad[id]++; });
+        }
+    }); });
+    const taskWords = textKeywords(taskText);
+    const buddy = accountabilityPartnerOf(accountableId);
+    const exclude = new Set([accountableId].concat(excludeIds || []));
+    const isExternal = workType === "external";
+    const maxExternalLoad = Math.max(1, ...MEMBERS.map(m => externalLoad[m.id] || 0));
+    return MEMBERS.filter(m => !m.isDemo && !exclude.has(m.id)).map(m => {
+        let score = 0;
+        const reasons = [];
+        const kraData = MEMBER_KRA[m.id];
+        let kraScore = 0;
+        if (kraData && taskWords.length) {
+            kraData.kras.forEach(k => { kraScore += taskWords.filter(w => kraAreaKeywords(m.id, k.area).has(w)).length; });
+        }
+        if (kraScore > 0) {
+            score += kraScore * (isExternal ? 5 : 10);
+            reasons.push({ text: "KRA area matches this task", icon: "\uD83C\uDFAF" });
+        }
+        if (m.id === buddy) {
+            score += 15;
+            reasons.push({ text: "Regular accountability partner", icon: "\uD83E\uDD1D" });
+        }
+        const oc = openCount[m.id] || 0;
+        score += Math.max(0, (isExternal ? 15 : 10) - oc);
+        reasons.push({ text: `${oc} open task${oc === 1 ? "" : "s"} right now`, icon: oc <= 2 ? "\uD83D\uDFE2" : oc <= 5 ? "\uD83D\uDFE1" : "\uD83D\uDD34" });
+        if (isExternal) {
+            const load = externalLoad[m.id] || 0;
+            const fairnessBonus = Math.round((1 - load / maxExternalLoad) * 15);
+            score += fairnessBonus;
+            reasons.push({ text: `${load} external task${load === 1 ? "" : "s"} this month`, icon: load === 0 ? "\uD83C\uDD95" : load <= 2 ? "\u2696\uFE0F" : "\u26A0\uFE0F" });
+        }
+        return { id: m.id, name: m.name, short: m.short, role: m.role, score, openCount: oc, externalLoad: externalLoad[m.id] || 0, reasons };
+    }).sort((a, b) => b.score - a.score);
+}
 function suggestSupportingPartner(accountableId, taskText) {
     return suggestPartnerByRR(accountableId, taskText) || accountabilityPartnerOf(accountableId);
 }
@@ -18390,8 +18565,9 @@ function computeDraggingTasks(tasks, minRepeats) {
     const groups = {};
     tasks.forEach(t => { t.items.forEach(i => { if (i.linkedFrom)
         return; const key = `${t.memberId}||${i.text.trim().toLowerCase()}`; if (!groups[key])
-        groups[key] = { memberId: t.memberId, text: i.text, dates: [], anyDone: false }; groups[key].dates.push(t.date); if (i.status === "Done")
-        groups[key].anyDone = true; }); });
+        groups[key] = { memberId: t.memberId, text: i.text, dates: [], anyDone: false, depTag: null }; groups[key].dates.push(t.date); if (i.status === "Done")
+        groups[key].anyDone = true; if (i.depTag)
+        groups[key].depTag = i.depTag; }); });
     return Object.values(groups)
         .filter(g => g.dates.length >= threshold && !g.anyDone)
         .map(g => Object.assign(Object.assign({}, g), { dates: [...new Set(g.dates)].sort((a, b) => parseDMY(a) - parseDMY(b)) }))
@@ -18403,8 +18579,9 @@ function computeRepeatedTasks(tasks, minRepeats) {
     const groups = {};
     tasks.forEach(t => { t.items.forEach(i => { if (i.linkedFrom)
         return; const key = `${t.memberId}||${i.text.trim().toLowerCase()}`; if (!groups[key])
-        groups[key] = { memberId: t.memberId, text: i.text, dates: [], doneDate: null, p: i.p }; groups[key].dates.push(t.date); if (i.status === "Done" && !groups[key].doneDate)
-        groups[key].doneDate = t.date; }); });
+        groups[key] = { memberId: t.memberId, text: i.text, dates: [], doneDate: null, p: i.p, depTag: null }; groups[key].dates.push(t.date); if (i.status === "Done" && !groups[key].doneDate)
+        groups[key].doneDate = t.date; if (i.depTag)
+        groups[key].depTag = i.depTag; }); });
     const todayMs = new Date(new Date().toDateString()).getTime();
     return Object.values(groups)
         .map(g => Object.assign(Object.assign({}, g), { dates: [...new Set(g.dates)].sort((a, b) => parseDMY(a) - parseDMY(b)) }))
@@ -18532,7 +18709,7 @@ const SEED_KB_ARTICLES = [
       tags: ["resolution board", "goals", "mom library", "governance"], createdBy: null, createdAt: "13.07.2026", updatedAt: "13.07.2026" },
 
     { id: "kb-guide-006", title: "Team & Performance \u2014 Team, KRA & KPI, Monitor, Rankings, Appraisal", category: UG,
-      content: "TEAM\nA directory of all 11 members: name, designation and today's Work Report submission status at a glance.\n\nKRA & KPI\nDocuments each member's Key Result Areas and specific KPIs, weighted to total 100%. Toggle Single Member / Full Team; each weighted KRA card lists its KPIs. Print / Save PDF or Send KRA via WhatsApp.\n\nMONITOR\nCross-checks each member's Task of the Day against their Work Report and Resolution status, flagging Gaps in real time. Shows a headline sync percentage, Matched/Gaps/In Progress/Paused/Not Submitted counters, and a per-member comparison view.\n\nRANKINGS\nOrders the team by composite monthly score, blending completed-task volume with the Indices. Top three get medal markers; each row shows tasks done and a letter grade (A+ to D).\n\nAPPRAISAL\nTurns the scoring rules into a monthly grade. Scoring: on-time/no errors +10, early finish +3, initiative on unplanned task +5, two-plus reminders needed \u20134, completed late \u20135, completed with errors \u20135, one reminder needed \u20132, Work Report not submitted \u201310. Grade bands: A+ \u226590% Outstanding, A \u226580% Exceeds, B+ \u226570% Meets & Exceeds, B \u226560% Meets, C \u226550% Needs Improvement, D <50% Below Expectations. Tap any member in Team Rankings to open their full scorecard.",
+      content: "TEAM\nA directory of all 11 members: name, designation and today's Work Report submission status at a glance.\n\nKRA & KPI\nDocuments each member's Key Result Areas and specific KPIs, weighted to total 100%. Toggle Single Member / Full Team; each weighted KRA card lists its KPIs. Print / Save PDF or Send KRA via WhatsApp.\n\nMONITOR\nCross-checks each member's Task of the Day against their Work Report and Resolution status, flagging Gaps in real time. Shows a headline sync percentage, Matched/Gaps/In Progress/Paused/Not Submitted counters, and a per-member comparison view.\n\nRANKINGS\nOrders the team by composite monthly score, blending completed-task volume with the Indices. Top three get medal markers; each row shows tasks done and a letter grade (A+ to D).\n\nAPPRAISAL\nTurns each completed task's actual TAT/deadline, reminder count, and rework flag into a live score \u2014 completed before TAT +3, within TAT +10, after TAT \u22125, one reminder \u22122, two-plus reminders \u22124, marked as rework/error \u22125, +5 for each Initiative (manually-created) resolution completed, and +5 for each Supporting-role task marked \u201cMy Part Done.\u201d Grade bands: A+ \u226590% Outstanding, A \u226580% Exceeds, B+ \u226570% Meets & Exceeds, B \u226560% Meets, C \u226550% Needs Improvement, D <50% Below Expectations. Tap any member in Team Rankings to open their full scorecard.",
       tags: ["kra", "kpi", "monitor", "rankings", "appraisal"], createdBy: null, createdAt: "13.07.2026", updatedAt: "13.07.2026" },
 
     { id: "kb-guide-007", title: "Generate Report & Saved Reports", category: UG,
@@ -18949,6 +19126,30 @@ function DeadlineBanner({ setTab }) {
     const dismiss = () => { const d = Object.assign(Object.assign({}, dismissed), { [`${today}_${key}`]: true }); setDismissed(d); localStorage.setItem("dra_dismiss", JSON.stringify(d)); };
     return (React.createElement("div", { className: gold ? "banner-gold" : "banner-red" },
         React.createElement("span", { style: { cursor: "pointer" }, onClick: () => setTab("report") }, msg),
+        React.createElement("button", { onClick: dismiss, style: { background: "transparent", border: "none", cursor: "pointer", fontSize: 18, color: "inherit", fontWeight: 700, padding: "0 4px" } }, "\u00D7")));
+}
+function BackupReminderBanner({ session, setTab }) {
+    const [dismissed, setDismissed] = useState(() => { try {
+        return JSON.parse(localStorage.getItem("dra_dismiss") || "{}");
+    }
+    catch (_a) {
+        return {};
+    } });
+    if (!isSuperAdminSession(session))
+        return null;
+    const today = new Date().toISOString().slice(0, 10);
+    const last = Number(localStorage.getItem("dra.lastbackup.v1") || 0);
+    const daysSince = last ? Math.floor((Date.now() - last) / 86400000) : null;
+    const overdue = daysSince === null || daysSince >= 7;
+    if (!overdue)
+        return null;
+    const key = `backup_${daysSince === null ? "never" : Math.floor(daysSince / 7)}`;
+    if (dismissed[`${today}_${key}`])
+        return null;
+    const msg = daysSince === null ? "\uD83D\uDCBE No data backup has been taken yet \u2014 Export a backup now \u2192" : `\uD83D\uDCBE Last backup was ${daysSince} days ago \u2014 Export a fresh backup \u2192`;
+    const dismiss = () => { const d = Object.assign(Object.assign({}, dismissed), { [`${today}_${key}`]: true }); setDismissed(d); localStorage.setItem("dra_dismiss", JSON.stringify(d)); };
+    return (React.createElement("div", { className: "banner-gold" },
+        React.createElement("span", { style: { cursor: "pointer" }, onClick: () => setTab("admin") }, msg),
         React.createElement("button", { onClick: dismiss, style: { background: "transparent", border: "none", cursor: "pointer", fontSize: 18, color: "inherit", fontWeight: 700, padding: "0 4px" } }, "\u00D7")));
 }
 // ── MY DAY ────────────────────────────────────────────────────────────
@@ -19686,6 +19887,7 @@ function DailyTasks({ session, initialFilter, onFilterConsumed } = {}) {
     const [filter, setFilter] = useState("all");
     const [dateFilter, setDateFilter] = useState("all");
     const [memberFilter, setMemberFilter] = useState("all");
+    const [matchFor, setMatchFor] = useState(null);
     useEffect(() => { if (initialFilter) { setFilter(initialFilter); if (onFilterConsumed) onFilterConsumed(); } }, [initialFilter]);
     const enriched = useMemo(() => tasks.map(t => (Object.assign(Object.assign({}, t), { items: t.items.map(i => (Object.assign(Object.assign({}, i), { p: detectPriority(i.text) }))) }))), [tasks]);
     const availableDates = useMemo(() => [...new Set(tasks.map(t => t.date).filter(Boolean))].sort((a, b) => parseDMY(b) - parseDMY(a)), [tasks]);
@@ -19791,7 +19993,13 @@ function DailyTasks({ session, initialFilter, onFilterConsumed } = {}) {
                             React.createElement("button", { disabled: i.status === "Paused" || i.status === "Done", onClick: () => { const nextStatus = cycleStatus(i.status); if (i.status !== "Paused" && i.status !== "Done" && (nextStatus !== "Done" ? (userLvl !== "L3" || t.memberId === (session && session.memberId)) : (isAccPerson || isSuperAdminSession(session))))
                                     updateTaskStatus(t.id, i.id, nextStatus); }, className: `pill ${sStyle(i.status) || "pill-low"}`, style: { cursor: (i.status === "Paused" || i.status === "Done") ? "default" : "pointer", fontSize: 10, whiteSpace: "nowrap", opacity: i.status === "Paused" ? .6 : 1, background: i.status === "Done" ? "rgba(6,214,160,.15)" : i.status === "In Progress" ? "rgba(201,162,39,.15)" : i.status === "Paused" ? "rgba(138,155,188,.15)" : "transparent", borderColor: i.status === "Done" ? "rgba(6,214,160,.4)" : i.status === "In Progress" ? "rgba(201,162,39,.4)" : i.status === "Paused" ? "rgba(138,155,188,.4)" : "rgba(201,162,39,.2)", color: i.status === "Done" ? "#06d6a0" : i.status === "In Progress" ? "#f0c040" : i.status === "Paused" ? "#8a9bbc" : "#8a9bbc" } }, i.status === "Paused" ? "\u23F8 Paused" : i.status),
                             i.status !== "Done" && i.status !== "Paused" && (isAccPerson || isSuperAdminSession(session)) && React.createElement("button", { title: isAccPerson ? "Finish this task" : "Super Admin override \u2014 finishing on behalf of the Accountable partner", onClick: () => updateTaskStatus(t.id, i.id, "Done"), style: { border: "1px solid rgba(6,214,160,.4)", background: "rgba(6,214,160,.15)", color: "#06d6a0", borderRadius: 20, padding: "3px 10px", fontSize: 10, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit" } }, "\u2713 Finish"),
-                            i.status !== "Done" && !isAccPerson && isSupPerson && React.createElement("button", { title: "Mark your own support role as done \u2014 this does not finish the whole task", onClick: () => toggleSupportDone(t.id, i.id, session.memberId), style: { border: `1px solid ${myPartDone ? "rgba(6,214,160,.4)" : "rgba(201,162,39,.35)"}`, background: myPartDone ? "rgba(6,214,160,.15)" : "transparent", color: myPartDone ? "#06d6a0" : "#c9a227", borderRadius: 20, padding: "3px 10px", fontSize: 10, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit" } }, myPartDone ? "\u2713 My Part Done" : "Mark My Part Done")),
+                            i.status !== "Done" && !isAccPerson && isSupPerson && React.createElement("button", { title: "Mark your own support role as done \u2014 this does not finish the whole task", onClick: () => toggleSupportDone(t.id, i.id, session.memberId), style: { border: `1px solid ${myPartDone ? "rgba(6,214,160,.4)" : "rgba(201,162,39,.35)"}`, background: myPartDone ? "rgba(6,214,160,.15)" : "transparent", color: myPartDone ? "#06d6a0" : "#c9a227", borderRadius: 20, padding: "3px 10px", fontSize: 10, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit" } }, myPartDone ? "\u2713 My Part Done" : "Mark My Part Done"),
+                            i.status === "Done" && (isAccPerson || userLvl !== "L3" || isSuperAdminSession(session)) && React.createElement("button", { title: "Flag this completed task for rework/errors \u2014 affects appraisal scoring", onClick: () => toggleErrorFlag(t.id, i.id), style: { border: `1px solid ${i.hasError ? "rgba(230,57,70,.5)" : "rgba(201,162,39,.25)"}`, background: i.hasError ? "rgba(230,57,70,.15)" : "transparent", color: i.hasError ? "#ff8a92" : "#8a9bbc", borderRadius: 20, padding: "3px 10px", fontSize: 10, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit" } }, i.hasError ? "\u26A0 Rework Flagged" : "Flag Rework"),
+                            (isAccPerson || userLvl !== "L3" || isSuperAdminSession(session)) && (() => { const wtv = effectiveWorkType(i); return React.createElement("button", { title: "External work (commute, risk, money handled, time-consuming) is weighted 1.5\u00D7 in appraisal scoring vs Internal deskwork. Auto-detected \u2014 tap to override.", onClick: () => setWorkType(t.id, i.id, wtv === "external" ? "internal" : "external"), style: { border: `1px solid ${wtv === "external" ? "rgba(244,162,97,.5)" : "rgba(138,155,188,.3)"}`, background: wtv === "external" ? "rgba(244,162,97,.15)" : "transparent", color: wtv === "external" ? "#f4a261" : "#8a9bbc", borderRadius: 20, padding: "3px 10px", fontSize: 10, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit" } }, wtv === "external" ? "\uD83D\uDE97 External (1.5\u00D7)" : "\uD83C\uDFE2 Internal"); })(),
+                            i.status !== "Done" && (isAccPerson || userLvl !== "L3" || isSuperAdminSession(session)) && React.createElement("select", { title: "Why is this still open? Helps explain repeated/dragging tasks that aren't actually neglected.", value: i.depTag || "", onChange: e => setDependencyTag(t.id, i.id, e.target.value), style: { fontSize: 9, padding: "2px 6px", borderRadius: 14, border: `1px solid ${i.depTag ? DEP_TAGS[i.depTag].color + "80" : "rgba(201,162,39,.25)"}`, background: i.depTag ? `${DEP_TAGS[i.depTag].color}20` : "transparent", color: i.depTag ? DEP_TAGS[i.depTag].color : "#8a9bbc", fontFamily: "inherit" } },
+                                React.createElement("option", { value: "" }, "No dependency tag"),
+                                React.createElement("option", { value: "external" }, "\u23F3 Waiting on External Party"),
+                                React.createElement("option", { value: "workhall" }, "\uD83D\uDCCB Tracked in WorkHall"))),
                         i.status === "Paused" && i.pauseReason && React.createElement("div", { style: { fontSize: 10, color: "#8a9bbc", marginLeft: 24, marginTop: 2, fontStyle: "italic" } },
                             "\u23F8\uFE0F ",
                             i.pauseReason,
@@ -19801,7 +20009,7 @@ function DailyTasks({ session, initialFilter, onFilterConsumed } = {}) {
                                 React.createElement("span", null,
                                     "\uD83C\uDFAF ",
                                     (MEMBERS.find(x => x.id === i.accountable) || {}).name || "\u2014"),
-                                i.accountable && React.createElement("button", { title: "Send reminder via WhatsApp + Email", onClick: () => remindTaskPartner(i.accountable, i, t.date), style: { border: "none", background: "transparent", cursor: "pointer", fontSize: 12, padding: 0 } }, "\uD83D\uDD14"),
+                                i.accountable && React.createElement("button", { title: "Send reminder via WhatsApp + Email", onClick: () => { incrementReminderCount(t.id, i.id); remindTaskPartner(i.accountable, i, t.date); }, style: { border: "none", background: "transparent", cursor: "pointer", fontSize: 12, padding: 0 } }, "\uD83D\uDD14"),
                                 ["supporting", "supporting2", "supporting3"].map((slot, idx) => i[slot] && React.createElement(React.Fragment, { key: slot },
                                     React.createElement("span", null,
                                         "\uD83E\uDD1D",
@@ -19809,10 +20017,10 @@ function DailyTasks({ session, initialFilter, onFilterConsumed } = {}) {
                                         " ",
                                         (MEMBERS.find(x => x.id === i[slot]) || {}).name,
                                         (i.supDone && i.supDone[i[slot]]) ? " \u2705" : ""),
-                                    React.createElement("button", { title: "Send reminder via WhatsApp + Email", onClick: () => remindTaskPartner(i[slot], i, t.date), style: { border: "none", background: "transparent", cursor: "pointer", fontSize: 12, padding: 0 } }, "\uD83D\uDD14")))) : React.createElement(React.Fragment, null,
+                                    React.createElement("button", { title: "Send reminder via WhatsApp + Email", onClick: () => { incrementReminderCount(t.id, i.id); remindTaskPartner(i[slot], i, t.date); }, style: { border: "none", background: "transparent", cursor: "pointer", fontSize: 12, padding: 0 } }, "\uD83D\uDD14")))) : React.createElement(React.Fragment, null,
                                 React.createElement("span", null, "\uD83C\uDFAF Accountable:"),
                                 React.createElement("select", { value: i.accountable || "", onChange: e => updateItemPartner(t.id, i.id, "accountable", e.target.value), style: { width: "auto", padding: "2px 6px", fontSize: 10, borderRadius: 6, border: "1px solid rgba(201,162,39,.25)", background: "rgba(0,0,0,.3)", color: "#e8dfc0" } }, MEMBERS.map(mm => React.createElement("option", { key: mm.id, value: mm.id }, mm.short))),
-                                i.accountable && React.createElement("button", { title: "Send reminder via WhatsApp + Email", onClick: () => remindTaskPartner(i.accountable, i, t.date), style: { border: "none", background: "transparent", cursor: "pointer", fontSize: 12, padding: 0 } }, "\uD83D\uDD14"),
+                                i.accountable && React.createElement("button", { title: "Send reminder via WhatsApp + Email", onClick: () => { incrementReminderCount(t.id, i.id); remindTaskPartner(i.accountable, i, t.date); }, style: { border: "none", background: "transparent", cursor: "pointer", fontSize: 12, padding: 0 } }, "\uD83D\uDD14"),
                                 ["supporting", "supporting2", "supporting3"].map((slot, idx) => React.createElement(React.Fragment, { key: slot },
                                     React.createElement("span", null,
                                         "\uD83E\uDD1D Supporting",
@@ -19822,13 +20030,33 @@ function DailyTasks({ session, initialFilter, onFilterConsumed } = {}) {
                                             notifySupportingMapped(i, t.date, newVal); }, style: { width: "auto", padding: "2px 6px", fontSize: 10, borderRadius: 6, border: "1px solid rgba(201,162,39,.25)", background: "rgba(0,0,0,.3)", color: "#e8dfc0" } },
                                         React.createElement("option", { value: "" }, "None"),
                                         MEMBERS.filter(mm => mm.id !== i.accountable && mm.id !== i.supporting && mm.id !== i.supporting2 && mm.id !== i.supporting3 || mm.id === i[slot]).map(mm => React.createElement("option", { key: mm.id, value: mm.id }, mm.short))),
-                                    i[slot] && React.createElement("button", { title: "Send reminder via WhatsApp + Email", onClick: () => remindTaskPartner(i[slot], i, t.date), style: { border: "none", background: "transparent", cursor: "pointer", fontSize: 12, padding: 0 } }, "\uD83D\uDD14"),
+                                    i[slot] && (() => { const wtv = effectiveWorkType(i); return React.createElement("button", { title: "External work (commute, risk, money handled) is weighted 1.5\u00D7 in appraisal scoring. Tap to switch.", onClick: () => setWorkType(t.id, i.id, wtv === "external" ? "internal" : "external"), style: { border: `1px solid ${wtv === "external" ? "rgba(244,162,97,.5)" : "rgba(138,155,188,.3)"}`, background: wtv === "external" ? "rgba(244,162,97,.15)" : "transparent", color: wtv === "external" ? "#f4a261" : "#8a9bbc", borderRadius: 10, padding: "1px 6px", fontSize: 9, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit" } }, wtv === "external" ? "\uD83D\uDE97" : "\uD83C\uDFE2"); })(),
+                                    React.createElement("button", { title: "Support Team Matchmaker \u2014 suggest the best-fit partner for this task", onClick: () => setMatchFor({ tid: t.id, iid: i.id, slot, accountable: i.accountable, text: i.text, exclude: [i.supporting, i.supporting2, i.supporting3].filter(Boolean), workType: effectiveWorkType(i) }), style: { border: "none", background: "transparent", cursor: "pointer", fontSize: 12, padding: 0 } }, "\uD83C\uDFAF"),
+                                    i[slot] && React.createElement("button", { title: "Send reminder via WhatsApp + Email", onClick: () => { incrementReminderCount(t.id, i.id); remindTaskPartner(i[slot], i, t.date); }, style: { border: "none", background: "transparent", cursor: "pointer", fontSize: 12, padding: 0 } }, "\uD83D\uDD14"),
                                     i[slot] && React.createElement("span", { style: { fontSize: 10 } }, (i.supDone && i.supDone[i[slot]]) ? "\u2705" : "\u23F3"))))))); })));
             }),
             React.createElement("div", { className: "card", style: { border: "1px solid rgba(230,57,70,.3)" } },
                 React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: "#ff8a92", marginBottom: 8 } }, "\u26A0\uFE0F Not submitted today"),
                 React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 } }, NOT_SUBMITTED_IDS.map(id => { const m = MEMBERS.find(x => x.id === id); return (React.createElement("span", { key: id, className: "pill pill-high", style: { fontSize: 11 } }, m.name)); })),
-                React.createElement("div", { style: { fontSize: 10, color: "rgba(230,57,70,.6)", marginTop: 6 } }, "Task of the Day: 10:30 AM \u00B7 Work Report: 11:59 PM")))));
+                React.createElement("div", { style: { fontSize: 10, color: "rgba(230,57,70,.6)", marginTop: 6 } }, "Task of the Day: 10:30 AM \u00B7 Work Report: 11:59 PM")),
+            matchFor && (() => { const candidates = rankSupportCandidates(matchFor.accountable, matchFor.text, matchFor.exclude, matchFor.workType); return React.createElement("div", { className: "modal-bg", onClick: e => e.target === e.currentTarget && setMatchFor(null) },
+                React.createElement("div", { className: "modal" },
+                    React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 } },
+                        React.createElement("div", { style: { fontFamily: "Cormorant Garamond,serif", fontSize: 20, color: "#f0c040" } }, "\uD83C\uDFAF Support Team Matchmaker"),
+                        React.createElement("button", { onClick: () => setMatchFor(null), style: { background: "transparent", border: "1px solid rgba(201,162,39,.3)", borderRadius: 8, color: "#8a9bbc", width: 28, height: 28, cursor: "pointer", fontSize: 16 } }, "\u00D7")),
+                    React.createElement("div", { style: { fontSize: 11, color: "#8a9bbc", marginBottom: 10 } }, "Best-fit ranked suggestions for: ", React.createElement("i", null, matchFor.text)),
+                    React.createElement("div", { style: { fontSize: 9, color: "#8a9bbc", marginBottom: 4, textTransform: "uppercase", letterSpacing: ".5px" } }, "Work type for this allocation \u2014 changes how candidates are ranked"),
+                    React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 14 } },
+                        React.createElement("button", { onClick: () => setMatchFor(Object.assign({}, matchFor, { workType: "internal" })), style: { flex: 1, padding: "6px 10px", borderRadius: 8, fontSize: 11, border: `1px solid ${matchFor.workType === "internal" ? "rgba(138,155,188,.6)" : "rgba(138,155,188,.25)"}`, background: matchFor.workType === "internal" ? "rgba(138,155,188,.15)" : "transparent", color: "#8a9bbc", cursor: "pointer", fontFamily: "inherit", fontWeight: matchFor.workType === "internal" ? 700 : 400 } }, "\uD83C\uDFE2 Internal (1\u00D7)"),
+                        React.createElement("button", { onClick: () => setMatchFor(Object.assign({}, matchFor, { workType: "external" })), style: { flex: 1, padding: "6px 10px", borderRadius: 8, fontSize: 11, border: `1px solid ${matchFor.workType === "external" ? "rgba(244,162,97,.6)" : "rgba(244,162,97,.25)"}`, background: matchFor.workType === "external" ? "rgba(244,162,97,.15)" : "transparent", color: "#f4a261", cursor: "pointer", fontFamily: "inherit", fontWeight: matchFor.workType === "external" ? 700 : 400 } }, "\uD83D\uDE97 External (1.5\u00D7)")),
+                    candidates.slice(0, 5).map((c, idx) => React.createElement("div", { key: c.id, style: { border: "1px solid rgba(201,162,39,.2)", borderRadius: 8, padding: 10, marginBottom: 8, background: idx === 0 ? "rgba(201,162,39,.08)" : "transparent" } },
+                        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 } },
+                            React.createElement("div", { style: { fontWeight: 700, fontSize: 13, color: idx === 0 ? "#f0c040" : "#e8dfc0" } }, idx === 0 ? "\u2B50 " : "", c.name),
+                            React.createElement("button", { className: "gold-btn", style: { fontSize: 10, padding: "4px 12px" }, onClick: () => { updateItemPartner(matchFor.tid, matchFor.iid, matchFor.slot, c.id); setWorkType(matchFor.tid, matchFor.iid, matchFor.workType); notifySupportingMapped({ text: matchFor.text, accountable: matchFor.accountable, status: "In Progress" }, todayDMY(), c.id); setMatchFor(null); } }, "Assign")),
+                        React.createElement("div", { style: { fontSize: 10, color: "#8a9bbc" } }, c.role),
+                        React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6 } }, c.reasons.map((r, ri) => React.createElement("span", { key: ri, style: { fontSize: 9, background: "rgba(201,162,39,.1)", border: "1px solid rgba(201,162,39,.25)", borderRadius: 10, padding: "2px 8px", color: "#c9a227" } }, r.icon, " ", r.text)))),
+                    candidates.length === 0 && React.createElement("div", { style: { textAlign: "center", color: "#8a9bbc", fontSize: 12, padding: 16 } }, "No available candidates \u2014 everyone eligible is already assigned to this task."))));
+            })())));
 }
 // ── WORK REPORT ───────────────────────────────────────────────────────
 function WorkReport({ session, initialFilter, onFilterConsumed }) {
@@ -20094,8 +20322,12 @@ function MonitorSync({ setTab, goTo } = {}) {
                         g.dates.length,
                         " listings \u00B7 first ",
                         g.dates[0])),
-                React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center", flexShrink: 0 } },
-                    React.createElement("span", { className: `pill ${g.status === "Done" ? "pill-done" : "pill-high"}`, style: { fontSize: 9, whiteSpace: "nowrap" } }, g.status),
+                React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center", flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" } },
+                    g.depTag && DEP_TAGS[g.depTag] && React.createElement("span", { className: "pill", style: { fontSize: 9, whiteSpace: "nowrap", background: `${DEP_TAGS[g.depTag].color}20`, borderColor: `${DEP_TAGS[g.depTag].color}60`, color: DEP_TAGS[g.depTag].color } },
+                        DEP_TAGS[g.depTag].icon,
+                        " ",
+                        DEP_TAGS[g.depTag].label),
+                    React.createElement("span", { className: `pill ${g.status === "Done" ? "pill-done" : (g.depTag ? "" : "pill-high")}`, style: { fontSize: 9, whiteSpace: "nowrap", background: g.status !== "Done" && g.depTag ? "rgba(138,155,188,.15)" : undefined, borderColor: g.status !== "Done" && g.depTag ? "rgba(138,155,188,.4)" : undefined, color: g.status !== "Done" && g.depTag ? "#8a9bbc" : undefined } }, g.status),
                     React.createElement("span", { className: "pill", style: { fontSize: 9, whiteSpace: "nowrap", background: "rgba(201,162,39,.15)", borderColor: "rgba(201,162,39,.4)", color: "#c9a227" } },
                         "TAT ",
                         g.tat,
@@ -21152,9 +21384,10 @@ function AppraisalTab({ session } = {}) {
         React.createElement("button", { className: "gold-btn no-print", style: { marginBottom: 14, fontSize: 12 }, onClick: () => window.print() }, "\uD83D\uDDA8\uFE0F Print / Save PDF"),
         React.createElement("div", { className: "card no-print", style: { marginBottom: 12 } },
             React.createElement("div", { style: { fontSize: 10, textTransform: "uppercase", letterSpacing: "1px", color: "#c9a227", marginBottom: 10 } }, "Scoring Rules"),
-            React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 5 } }, [["+10", "On time, no errors"], ["+3", "Early finish bonus"], ["+5", "Initiative (unplanned task)"], ["−2", "One reminder needed"], ["−4", "Two+ reminders needed"], ["−5", "Completed late"], ["−5", "Completed with errors"], ["−10", "Work Report not submitted"]].map(([pts, label]) => (React.createElement("div", { key: label, style: { display: "flex", gap: 8, alignItems: "center", flex: "1 1 190px" } },
+            React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 5 } }, [["+10", "On time, no errors"], ["+3", "Early finish bonus"], ["+5", "Initiative (unplanned task)"], ["+5", "Supporting role completed"], ["\u22122", "One reminder needed"], ["\u22124", "Two+ reminders needed"], ["\u22125", "Completed late"], ["\u22125", "Completed with errors"]].map(([pts, label]) => (React.createElement("div", { key: label, style: { display: "flex", gap: 8, alignItems: "center", flex: "1 1 190px" } },
                 React.createElement("span", { style: { fontWeight: 800, color: pts.startsWith("+") ? "#06d6a0" : "#e63946", minWidth: 28, fontSize: 12 } }, pts),
-                React.createElement("span", { style: { fontSize: 12, color: "#e8dfc0" } }, label)))))),
+                React.createElement("span", { style: { fontSize: 12, color: "#e8dfc0" } }, label))))),
+            React.createElement("div", { style: { fontSize: 10, color: "#8a9bbc", marginTop: 10, paddingTop: 8, borderTop: "1px solid rgba(201,162,39,.15)" } }, "\uD83D\uDE97 External work \u2014 bank/SRO visits, registrations, court/tribunal, travel, money handled \u2014 carries commute, risk, and time cost, so all points on that task are weighted \u00D71.5. \uD83C\uDFE2 Internal deskwork is weighted \u00D71. Auto-detected per task, manually overridable in Daily Tasks.")),
         React.createElement("div", { className: "no-print", style: { display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 } }, [["A+", "≥90%", "Outstanding", "#06d6a0"], ["A", "≥80%", "Exceeds", "#2a9d8f"], ["B+", "≥70%", "Meets & Exceeds", "#c9a227"], ["B", "≥60%", "Meets", "#f4a261"], ["C", "≥50%", "Needs Improvement", "#e07b39"], ["D", "<50%", "Below Expectations", "#e63946"]].map(([g, r, l, c]) => (React.createElement("div", { key: g, style: { background: `${c}15`, border: `1px solid ${c}40`, borderRadius: 10, padding: "10px 8px", textAlign: "center", flex: "1 1 140px" } },
             React.createElement("div", { style: { fontFamily: "Cormorant Garamond,serif", fontSize: 28, fontWeight: 800, color: c, lineHeight: 1 } }, g),
             React.createElement("div", { style: { fontSize: 9, color: "#8a9bbc", marginTop: 2 } }, r),
@@ -21185,7 +21418,19 @@ function AppraisalTab({ session } = {}) {
                     " \u00B7 ",
                     selRow.label),
                 React.createElement("div", { style: { textAlign: "left", marginBottom: 16 } }, pillars.map(([l, w]) => {
-                    const val = Math.round(selRow.score / 100 * w);
+                    const bd = selRow.breakdown;
+                    const doneCount = selRow.doneCount || 0;
+                    let val;
+                    if (bd && doneCount && l === "TAT Compliance")
+                        val = Math.round((bd.withinTAT + bd.beforeTAT) / doneCount * w);
+                    else if (bd && doneCount && l === "Quality")
+                        val = Math.round((doneCount - bd.errors) / doneCount * w);
+                    else if (bd && l === "Initiative")
+                        val = Math.min(w, bd.initiative * 2);
+                    else if (l === "Accountability" && selRow.supportCount)
+                        val = Math.round((selRow.supportDoneCount || 0) / selRow.supportCount * w);
+                    else
+                        val = Math.round(selRow.score / 100 * w);
                     return (React.createElement("div", { key: l, style: { marginBottom: 8 } },
                         React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 3 } },
                             React.createElement("span", { style: { color: "#e8dfc0" } }, l),
@@ -21714,14 +21959,16 @@ function GenerateReport({ setTab }) {
                         React.createElement("th", { style: { padding: 6 } }, "Listings"),
                         React.createElement("th", { style: { padding: 6 } }, "First Seen"),
                         React.createElement("th", { style: { padding: 6 } }, "TAT (days)"),
-                        React.createElement("th", { style: { padding: 6 } }, "Status"))),
+                        React.createElement("th", { style: { padding: 6 } }, "Status"),
+                        React.createElement("th", { style: { padding: 6, textAlign: "left" } }, "Dependency"))),
                 React.createElement("tbody", null, repeatedRows.map((g, i) => { const mm = MEMBERS.find(x => x.id === g.memberId); return React.createElement("tr", { key: i, style: { borderBottom: "1px solid #e5e7eb" } },
                     React.createElement("td", { style: { padding: 6, fontWeight: 600 } }, (mm === null || mm === void 0 ? void 0 : mm.name) || g.memberId),
                     React.createElement("td", { style: { padding: 6 } }, g.text),
                     React.createElement("td", { style: { padding: 6, textAlign: "center" } }, g.dates.length),
                     React.createElement("td", { style: { padding: 6, textAlign: "center" } }, g.dates[0]),
                     React.createElement("td", { style: { padding: 6, textAlign: "center", fontWeight: 700 } }, g.tat),
-                    React.createElement("td", { style: { padding: 6, textAlign: "center" } }, g.status)); })))),
+                    React.createElement("td", { style: { padding: 6, textAlign: "center" } }, g.status),
+                    React.createElement("td", { style: { padding: 6 } }, g.depTag && DEP_TAGS[g.depTag] ? DEP_TAGS[g.depTag].label : "\u2014")); })))),
         reportType === "attendance" && React.createElement("div", { className: "printable-white", style: { background: "#fff", color: "#111", borderRadius: 12, padding: 24, fontFamily: "sans-serif" } },
             hdr,
             React.createElement("table", { style: { width: "100%", fontSize: 11 } },
@@ -21785,6 +22032,7 @@ function AdminTab({ isAdmin, session }) {
     const [importMsg, setImportMsg] = useState(null);
     const BACKUP_KEYS = ["dra.tasks.v1", "dra.resboard.v1", "dra.workreports.v1", "dra.movement.v1", "dra.goals.v1", "dra.notifications.v1", "dra.knowledgebase.v1", "dra.momlibrary.v1", "dra.audit.v1", "dra.pinoverrides.v1", "dra.leveloverrides.v1", "dra.agencies.v1", "dra.loginlock.v1", "dra.promotions.v1", "dra.reports"];
     const exportAllData = () => {
+        localStorage.setItem("dra.lastbackup.v1", String(Date.now()));
         const data = {};
         BACKUP_KEYS.forEach(k => { const v = localStorage.getItem(k); if (v !== null)
             data[k] = v; });
@@ -22372,6 +22620,7 @@ function App() {
                     React.createElement("button", { onClick: () => setSearchOpen(true), style: { background: "transparent", border: "1px solid rgba(201,162,39,.25)", borderRadius: 8, padding: "5px 8px", color: "#c9a227", cursor: "pointer", display: "flex", alignItems: "center" } }, I.search),
                     React.createElement("button", { onClick: logout, style: { background: "transparent", border: "1px solid rgba(201,162,39,.3)", borderRadius: 8, padding: "5px 10px", color: "#c9a227", fontSize: 11, cursor: "pointer", fontFamily: "inherit" } }, "Sign out"))),
             React.createElement(DeadlineBanner, { setTab: setTab }),
+            React.createElement(BackupReminderBanner, { session: session, setTab: setTab }),
             React.createElement("div", { className: "main-wrap", style: { padding: "16px", maxWidth: 1200, width: "100%", margin: "0 auto", flex: 1, overflowY: "auto" } }, tabContent())),
         React.createElement("nav", { className: "bottom-nav", style: { flexDirection: "column", padding: 0 } },
             React.createElement("button", { className: "menu-launcher", onClick: () => setMenuOpen(true) },
