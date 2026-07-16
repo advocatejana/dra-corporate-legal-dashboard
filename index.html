@@ -18061,14 +18061,18 @@ function remindAllChannels(mm, subject, text) {
     if (mm.email)
         setTimeout(() => openMailto(mm.email, subject, text), 400);
 }
+function resIdFor(itemId) { if (!itemId)
+    return null; const r = readBoard().find(x => x.linkedItemId === itemId); return r ? r.resId : null; }
 function remindTaskPartner(memberId, item, taskDate) {
     const mm = MEMBERS.find(x => x.id === memberId);
     if (!mm)
         return;
     const firstName = mm.name.replace(/^Adv\.?\s*/i, "").split(/\s+/)[0];
     const statusNote = item.status === "Paused" && item.pauseReason ? ` (Paused — ${item.pauseReason})` : "";
-    const text = `DRA Legal — Task Reminder\n\nHi ${firstName}, a gentle reminder on:\n\n"${item.text}"\n\nStatus: ${item.status}${statusNote}\nDate: ${taskDate}\n\nKindly update at the earliest.${SIG}`;
-    remindAllChannels(mm, `Task Reminder — ${item.text}`, text);
+    const resId = resIdFor(item.id);
+    const resLine = resId ? `Resolution: ${resId}\n` : "";
+    const text = `DRA Legal — Task Reminder\n\n${resLine}Hi ${firstName}, a gentle reminder on:\n\n"${item.text}"\n\nStatus: ${item.status}${statusNote}\nDate: ${taskDate}\n\nKindly update at the earliest.${SIG}`;
+    remindAllChannels(mm, `Task Reminder${resId ? ` [${resId}]` : ""} — ${item.text}`, text);
 }
 function notifySupportingMapped(item, taskDate, newMemberId) {
     const mm = MEMBERS.find(x => x.id === newMemberId);
@@ -18077,8 +18081,10 @@ function notifySupportingMapped(item, taskDate, newMemberId) {
     const accMember = MEMBERS.find(x => x.id === item.accountable);
     const accName = (accMember === null || accMember === void 0 ? void 0 : accMember.name) || "the Accountable Partner";
     const firstName = mm.name.replace(/^Adv\.?\s*/i, "").split(/\s+/)[0];
-    const subject = `You've been added as Supporting Partner — ${item.text}`;
-    const body = `Hi ${firstName},\n\nYou have just been mapped as a Supporting Partner on the following task by ${accName} (Accountable Partner):\n\n"${item.text}"\nDate: ${taskDate}\nCurrent Status: ${item.status}\n\nKindly coordinate with ${accName} at the earliest.\n\n— ${accName}${SIG}`;
+    const resId = resIdFor(item.id);
+    const resLine = resId ? `Resolution: ${resId}\n` : "";
+    const subject = `You've been added as Supporting Partner${resId ? ` [${resId}]` : ""} — ${item.text}`;
+    const body = `Hi ${firstName},\n\nYou have just been mapped as a Supporting Partner on the following task by ${accName} (Accountable Partner):\n\n${resLine}"${item.text}"\nDate: ${taskDate}\nCurrent Status: ${item.status}\n\nKindly coordinate with ${accName} at the earliest.\n\n— ${accName}${SIG}`;
     setTimeout(() => openMailto(mm.email, subject, body), 300);
 }
 function remindAllPending(memberId, tasks) {
@@ -20024,9 +20030,9 @@ function DailyTasks({ session, initialFilter, onFilterConsumed } = {}) {
                             userLvl !== "L3" && React.createElement("button", { title: "Remind pending tasks via WhatsApp + Email", className: "ghost-btn", style: { fontSize: 11, padding: "4px 10px" }, onClick: () => remindAllPending(m.id, tasks) }, "\uD83D\uDD14"),
                             React.createElement("button", { title: "Share this day's list on WhatsApp", className: "ghost-btn", style: { fontSize: 11, padding: "4px 10px" }, onClick: () => window.open(`https://wa.me/?text=${encodeURIComponent(`*${m.name} — Tasks 03.07.2026*\n${t.items.map((i, n) => `${n + 1}. ${i.text} [${i.status}]`).join("\n")}${SIG}`)}`, "_blank") }, "\uD83D\uDCE4"))),
                     t.items.map(i => { const isAccPerson = !!(session && i.accountable === session.memberId); const isSupPerson = !!(session && [i.supporting, i.supporting2, i.supporting3].includes(session.memberId)); const myPartDone = !!(session && i.supDone && i.supDone[session.memberId]); return (React.createElement("div", { key: i.id, style: { padding: "6px 0", borderBottom: "1px solid rgba(201,162,39,.08)" } },
-                        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
+                        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" } },
                             React.createElement("span", { className: `pill ${pStyle(i.p)}`, style: { fontSize: 9, whiteSpace: "nowrap" } }, i.p),
-                            React.createElement("span", { style: { flex: 1, fontSize: 12, color: i.status === "Done" ? "#8a9bbc" : "#e8dfc0", textDecoration: i.status === "Done" ? "line-through" : "none" } },
+                            React.createElement("span", { style: { flex: "1 1 160px", fontSize: 12, color: i.status === "Done" ? "#8a9bbc" : "#e8dfc0", textDecoration: i.status === "Done" ? "line-through" : "none" } },
                                 i.text,
                                 i.linkedFrom && React.createElement("span", { style: { fontSize: 9, color: "#8a9bbc", marginLeft: 6 } }, "\uD83E\uDD1D supporting")),
                             (userLvl !== "L3" || t.memberId === (session && session.memberId)) && (() => { const pendingReq = pendingPauseRequestFor(i.id); if (i.status !== "Paused" && pendingReq)
@@ -20041,6 +20047,7 @@ function DailyTasks({ session, initialFilter, onFilterConsumed } = {}) {
                                         const reason = prompt("Reason for pause request (e.g. Waiting on External Department) \u2014 this needs DGM approval before the task pauses:", "Waiting on External Department");
                                         if (reason !== null)
                                             requestPauseTask(t.id, i.id, session.memberId, reason, i.text);
+                                            alert("\u23F3 Pause request submitted \u2014 awaiting DGM approval. The DGM will see it in the Super Admin Panel.");
                                     } }, style: { border: "1px solid rgba(138,155,188,.35)", background: "transparent", color: "#8a9bbc", borderRadius: 20, padding: "3px 8px", fontSize: 11, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit" } }, i.status === "Paused" ? "\u25B6" : "\u23F8"); })(),
                             React.createElement("button", { disabled: i.status === "Paused" || i.status === "Done", onClick: () => { const nextStatus = cycleStatus(i.status); if (i.status !== "Paused" && i.status !== "Done" && (nextStatus !== "Done" ? (userLvl !== "L3" || t.memberId === (session && session.memberId)) : (isAccPerson || isSuperAdminSession(session))))
                                     updateTaskStatus(t.id, i.id, nextStatus); }, className: `pill ${sStyle(i.status) || "pill-low"}`, style: { cursor: (i.status === "Paused" || i.status === "Done") ? "default" : "pointer", fontSize: 10, whiteSpace: "nowrap", opacity: i.status === "Paused" ? .6 : 1, background: i.status === "Done" ? "rgba(6,214,160,.15)" : i.status === "In Progress" ? "rgba(201,162,39,.15)" : i.status === "Paused" ? "rgba(138,155,188,.15)" : "transparent", borderColor: i.status === "Done" ? "rgba(6,214,160,.4)" : i.status === "In Progress" ? "rgba(201,162,39,.4)" : i.status === "Paused" ? "rgba(138,155,188,.4)" : "rgba(201,162,39,.2)", color: i.status === "Done" ? "#06d6a0" : i.status === "In Progress" ? "#f0c040" : i.status === "Paused" ? "#8a9bbc" : "#8a9bbc" } }, i.status === "Paused" ? "\u23F8 Paused" : i.status),
@@ -20104,7 +20111,7 @@ function DailyTasks({ session, initialFilter, onFilterConsumed } = {}) {
                     candidates.slice(0, 5).map((c, idx) => React.createElement("div", { key: c.id, style: { border: "1px solid rgba(201,162,39,.2)", borderRadius: 8, padding: 10, marginBottom: 8, background: idx === 0 ? "rgba(201,162,39,.08)" : "transparent" } },
                         React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 } },
                             React.createElement("div", { style: { fontWeight: 700, fontSize: 13, color: idx === 0 ? "#f0c040" : "#e8dfc0" } }, idx === 0 ? "\u2B50 " : "", c.name),
-                            React.createElement("button", { className: "gold-btn", style: { fontSize: 10, padding: "4px 12px" }, onClick: () => { updateItemPartner(matchFor.tid, matchFor.iid, matchFor.slot, c.id); setSupWorkType(matchFor.tid, matchFor.iid, matchFor.slot, matchFor.workType); notifySupportingMapped({ text: matchFor.text, accountable: matchFor.accountable, status: "In Progress" }, todayDMY(), c.id); setMatchFor(null); } }, "Assign")),
+                            React.createElement("button", { className: "gold-btn", style: { fontSize: 10, padding: "4px 12px" }, onClick: () => { updateItemPartner(matchFor.tid, matchFor.iid, matchFor.slot, c.id); setSupWorkType(matchFor.tid, matchFor.iid, matchFor.slot, matchFor.workType); notifySupportingMapped({ id: matchFor.iid, text: matchFor.text, accountable: matchFor.accountable, status: "In Progress" }, todayDMY(), c.id); setMatchFor(null); } }, "Assign")),
                         React.createElement("div", { style: { fontSize: 10, color: "#8a9bbc" } }, c.role),
                         React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6 } }, c.reasons.map((r, ri) => React.createElement("span", { key: ri, style: { fontSize: 9, background: "rgba(201,162,39,.1)", border: "1px solid rgba(201,162,39,.25)", borderRadius: 10, padding: "2px 8px", color: "#c9a227" } }, r.icon, " ", r.text)))),
                     candidates.length === 0 && React.createElement("div", { style: { textAlign: "center", color: "#8a9bbc", fontSize: 12, padding: 16 } }, "No available candidates \u2014 everyone eligible is already assigned to this task."))));
@@ -21571,7 +21578,7 @@ function GenerateReport({ setTab }) {
     const divider = React.createElement("div", { style: { borderTop: "1px dashed #999", margin: "10px 0" } });
     const resInfoFor = item => { const res = board.find(r => r.linkedItemId === item.id); const partners = [item.supporting, item.supporting2, item.supporting3].filter(Boolean).map(id => { const mm = MEMBERS.find(x => x.id === id); return mm ? mm.short : null; }).filter(Boolean); return { resId: res ? res.resId : null, partners }; };
     const depts = [...new Set(scoped.map(t => { const mm = MEMBERS.find(x => x.id === t.memberId); return mm ? mm.dept : null; }).filter(Boolean))];
-    const highPriorityItems = scoped.flatMap(t => { const mm = MEMBERS.find(x => x.id === t.memberId); return t.items.filter(i => detectPriority(i.text) === "HIGH" && i.status !== "Done").map(i => ({ mName: (mm === null || mm === void 0 ? void 0 : mm.name) || t.memberId, text: i.text, status: i.status })); });
+    const highPriorityItems = scoped.flatMap(t => { const mm = MEMBERS.find(x => x.id === t.memberId); return t.items.filter(i => detectPriority(i.text) === "HIGH" && i.status !== "Done").map(i => ({ mName: (mm === null || mm === void 0 ? void 0 : mm.name) || t.memberId, text: i.text, status: i.status, resId: (board.find(r => r.linkedItemId === i.id) || {}).resId || null })); });
     const highOpenCount = highPriorityItems.length;
     const registerBlock = (title, showSubmittedOn) => React.createElement("div", { style: { fontFamily: "sans-serif", fontSize: 12.5, lineHeight: 1.5 } },
         React.createElement("div", { style: { textAlign: "center", fontWeight: 700, marginBottom: 2 } }, "DRA CORPORATE LEGAL DEPARTMENT"),
@@ -21681,7 +21688,7 @@ function GenerateReport({ setTab }) {
                 scoped.map(t => { const m = MEMBERS.find(x => x.id === t.memberId); return (React.createElement("div", { key: t.id, style: { marginBottom: 8, fontSize: 11, border: "1px solid #e5e7eb", borderLeft: "4px solid #c9a227", borderRadius: 6, padding: 8 } },
                     React.createElement("div", { style: { fontWeight: 800, color: "#070f1e" } }, m.name),
                     React.createElement("div", { style: { color: "#555" } },
-                        t.items.slice(0, 3).map(i => `${i.text} [${i.status}]`).join(" · "),
+                        t.items.slice(0, 3).map(i => { const info = resInfoFor(i); return `${info.resId ? `[${info.resId}] ` : ""}${i.text} [${i.status}]`; }).join(" · "),
                         t.items.length > 3 ? ` +${t.items.length - 3} more` : ""))); })),
             tmpl === "classic" && scoped.map(t => { const m = MEMBERS.find(x => x.id === t.memberId); return (React.createElement("div", { key: t.id, style: { marginBottom: 16, border: "1px solid #e5d9ad", borderRadius: 6, overflow: "hidden" } },
                 React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", background: "linear-gradient(90deg,#0b1220,#182642)", padding: "8px 12px", borderLeft: "5px solid #c9a227" } },
@@ -21731,11 +21738,12 @@ function GenerateReport({ setTab }) {
                 scoped.map((t, idx) => { const m = MEMBERS.find(x => x.id === t.memberId); return React.createElement("div", { key: t.id, style: { marginBottom: 12 } },
                     React.createElement("div", { style: { fontSize: 12, fontWeight: 700, textDecoration: "underline" } },
                         `${idx + 1}. ${m.name} \u2014 ${m.role}`),
-                    React.createElement("ol", { style: { paddingLeft: 24, fontSize: 11.5, marginTop: 4, lineHeight: 1.5 } }, t.items.map(i => React.createElement("li", { key: i.id, style: { marginBottom: 2 } },
+                    React.createElement("ol", { style: { paddingLeft: 24, fontSize: 11.5, marginTop: 4, lineHeight: 1.5 } }, t.items.map(i => { const info = resInfoFor(i); return React.createElement("li", { key: i.id, style: { marginBottom: 2 } },
+                        info.resId ? `[${info.resId}] ` : "",
                         i.text,
                         " ",
                         React.createElement("i", null,
-                            `(${i.status})`))))); }),
+                            `(${i.status})`)); }))); }),
                 React.createElement("div", { style: { marginTop: 28, fontSize: 12 } },
                     React.createElement("div", null, "This is a system-generated report from the DRA Corporate Legal Dashboard."),
                     React.createElement("div", { style: { marginTop: 22 } }, "For DRA Homes,"),
@@ -21750,6 +21758,7 @@ function GenerateReport({ setTab }) {
                     highPriorityItems.map((x, i) => React.createElement("div", { key: i, style: { fontSize: 12, padding: "5px 0", borderBottom: "1px solid #f3f3f3" } },
                         React.createElement("b", null, x.mName),
                         " \u2014 ",
+                        x.resId ? `[${x.resId}] ` : "",
                         x.text,
                         " ",
                         React.createElement("span", { style: { color: "#888" } },
@@ -22318,6 +22327,10 @@ function AdminTab({ isAdmin, session }) {
                     localStorage.removeItem("dra.momlibrary.v1");
                     localStorage.removeItem("dra.loginlock.v1");
                     localStorage.removeItem("dra.reports");
+                    localStorage.removeItem("dra.leveloverrides.v1");
+                    localStorage.removeItem("dra.agencies.v1");
+                    localStorage.removeItem("dra.pauserequests.v1");
+                    localStorage.removeItem("dra.lastbackup.v1");
                     location.reload();
                 } } }, "\u26A0\uFE0F Reset All Data"))));
 }
