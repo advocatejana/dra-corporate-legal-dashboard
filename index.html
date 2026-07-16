@@ -18407,6 +18407,35 @@ function resumeTaskItem(tid, iid) {
     seedBoardFromTasks();
     _listeners.forEach(l => l());
 }
+// ── PAUSE REQUESTS \u2014 non-DGM users must get DGM approval to pause a task ──
+const PRK = "dra.pauserequests.v1";
+function readPauseRequests() { try { return JSON.parse(localStorage.getItem(PRK) || "[]"); } catch (_a) { return []; } }
+function writePauseRequests(list) { localStorage.setItem(PRK, JSON.stringify(list)); _listeners.forEach(l => l()); }
+function usePauseRequests() { const [r, setR] = useState(() => readPauseRequests()); useEffect(() => { setR(readPauseRequests()); const l = () => setR(readPauseRequests()); _listeners.add(l); return () => _listeners.delete(l); }, []); return r; }
+function pendingPauseRequestFor(iid) { return readPauseRequests().find(r => r.iid === iid && r.status === "Pending") || null; }
+function requestPauseTask(tid, iid, memberId, reason, itemText) {
+    const list = readPauseRequests();
+    list.push({ id: `pr-${Date.now()}`, tid, iid, memberId, reason: reason || "", itemText: itemText || "", requestedAt: nowFullStr(), status: "Pending", decidedBy: null, decidedAt: null, decisionNote: "" });
+    writePauseRequests(list);
+    logAudit(memberId, "pause-request", `Requested pause: ${itemText || iid}`);
+}
+function approvePauseRequest(reqId, decidedBy) {
+    const list = readPauseRequests();
+    const req = list.find(r => r.id === reqId);
+    if (!req)
+        return;
+    pauseTaskItem(req.tid, req.iid, req.reason);
+    writePauseRequests(list.map(r => r.id === reqId ? Object.assign(Object.assign({}, r), { status: "Approved", decidedBy, decidedAt: nowFullStr() }) : r));
+    logAudit(decidedBy, "pause-request", `Approved pause request from ${req.memberId}: ${req.itemText || req.iid}`);
+}
+function rejectPauseRequest(reqId, decidedBy, note) {
+    const list = readPauseRequests();
+    const req = list.find(r => r.id === reqId);
+    if (!req)
+        return;
+    writePauseRequests(list.map(r => r.id === reqId ? Object.assign(Object.assign({}, r), { status: "Rejected", decidedBy, decidedAt: nowFullStr(), decisionNote: note || "" }) : r));
+    logAudit(decidedBy, "pause-request", `Rejected pause request from ${req.memberId}: ${req.itemText || req.iid}`);
+}
 function upsertTasks(newT) {
     const tasks = readTasks();
     const map = new Map(tasks.map(t => [`${t.memberId}__${t.date}`, t]));
@@ -19187,6 +19216,8 @@ function MyDay({ session, setTab, goTo }) {
     const tasks = useTasks();
     const board = useBoard();
     const workReports = useWorkReports();
+    const pauseRequests = usePauseRequests();
+    const pendingPauseReqs = pauseRequests.filter(r => r.status === "Pending");
     const today = todayDMY();
     const hour = new Date().getHours();
     const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
@@ -19254,7 +19285,8 @@ function MyDay({ session, setTab, goTo }) {
             React.createElement(StatCard, { label: "Paused", value: pausedItems.length, color: "#8a9bbc", onClick: () => goTo ? goTo("tasks", "paused") : setTab("tasks") }),
             canManage && React.createElement(StatCard, { label: "Awaiting My Approval", value: awaitingApproval.length, color: "#9b59b6", onClick: () => goTo ? goTo("board", "Awaiting Approval") : setTab("board") }),
             canManage && React.createElement(StatCard, { label: "Completed \u2014 To Verify", value: completedToVerify.length, color: "#2a9d8f", onClick: () => goTo ? goTo("board", "Completed") : setTab("board") }),
-            canManage && React.createElement(StatCard, { label: "Work Reports to Approve", value: pendingWorkReports.length, color: "#f4a261", onClick: () => goTo ? goTo("report", "Pending") : setTab("report") })),
+            canManage && React.createElement(StatCard, { label: "Work Reports to Approve", value: pendingWorkReports.length, color: "#f4a261", onClick: () => goTo ? goTo("report", "Pending") : setTab("report") }),
+            isSuper && React.createElement(StatCard, { label: "Pause Requests to Approve", value: pendingPauseReqs.length, color: "#e63946", onClick: () => setTab("admin") })),
         !reportedToday && React.createElement("div", { className: "card", style: { border: "1px solid rgba(244,162,97,.4)", background: "rgba(244,162,97,.08)", marginBottom: 14, cursor: "pointer" }, onClick: () => setTab("report") },
             React.createElement("div", { style: { color: "#f4a261", fontWeight: 700, fontSize: 13 } }, "\u26A0\uFE0F You haven't submitted today's Work Report yet"),
             React.createElement("div", { style: { fontSize: 11, color: "#8a9bbc", marginTop: 2 } }, "Tap to submit \u2192")),
@@ -19906,7 +19938,7 @@ function DailyTasks({ session, initialFilter, onFilterConsumed } = {}) {
     const enriched = useMemo(() => tasks.map(t => (Object.assign(Object.assign({}, t), { items: t.items.map(i => (Object.assign(Object.assign({}, i), { p: detectPriority(i.text) }))) }))), [tasks]);
     const availableDates = useMemo(() => [...new Set(tasks.map(t => t.date).filter(Boolean))].sort((a, b) => parseDMY(b) - parseDMY(a)), [tasks]);
     const availableMembers = useMemo(() => MEMBERS.filter(x => !x.isDemo && tasks.some(t => t.memberId === x.id)), [tasks]);
-    const dateScoped = useMemo(() => enriched.filter(t => (dateFilter === "all" || t.date === dateFilter) && (memberFilter === "all" || t.memberId === memberFilter)), [enriched, dateFilter, memberFilter]);
+    const dateScoped = useMemo(() => enriched.filter(t => (userLvl !== "L3" || t.memberId === (session && session.memberId)) && (dateFilter === "all" || t.date === dateFilter) && (memberFilter === "all" || t.memberId === memberFilter)), [enriched, dateFilter, memberFilter, userLvl, session]);
     const stats = useMemo(() => { const all = dateScoped.flatMap(t => t.items); return { total: all.length, high: all.filter(i => i.p === "HIGH").length, inProg: all.filter(i => i.status === "In Progress").length, done: all.filter(i => i.status === "Done").length }; }, [dateScoped]);
     const donePct = stats.total ? Math.round(stats.done / stats.total * 100) : 0;
     const teamPct = Math.round(dateScoped.length / MEMBERS.length * 100);
@@ -19972,7 +20004,7 @@ function DailyTasks({ session, initialFilter, onFilterConsumed } = {}) {
             React.createElement("select", { value: dateFilter, onChange: e => setDateFilter(e.target.value), style: { width: "auto", padding: "6px 10px", fontSize: 11, borderRadius: 20, border: "1px solid rgba(201,162,39,.3)", background: "rgba(0,0,0,.3)", color: "#e8dfc0" } },
                 React.createElement("option", { value: "all" }, "\uD83D\uDCC5 All Dates"),
                 availableDates.map(d => React.createElement("option", { key: d, value: d }, d))),
-            React.createElement("select", { value: memberFilter, onChange: e => setMemberFilter(e.target.value), style: { width: "auto", padding: "6px 10px", fontSize: 11, borderRadius: 20, border: `1px solid ${memberFilter !== "all" ? "#c9a227" : "rgba(201,162,39,.3)"}`, background: "rgba(0,0,0,.3)", color: "#e8dfc0" } },
+            userLvl !== "L3" && React.createElement("select", { value: memberFilter, onChange: e => setMemberFilter(e.target.value), style: { width: "auto", padding: "6px 10px", fontSize: 11, borderRadius: 20, border: `1px solid ${memberFilter !== "all" ? "#c9a227" : "rgba(201,162,39,.3)"}`, background: "rgba(0,0,0,.3)", color: "#e8dfc0" } },
                 React.createElement("option", { value: "all" }, "\uD83D\uDC64 All Members"),
                 availableMembers.map(mm => React.createElement("option", { key: mm.id, value: mm.id }, mm.short))),
             [["all", "All"], ["high", "🔴 High"], ["inprog", "▶ In Progress"], ["done", "✓ Done"], ["paused", "⏸ Paused"], ["pending", "⏳ Pending"]].map(([k, l]) => (React.createElement("button", { key: k, onClick: () => setFilter(k), style: { padding: "5px 12px", borderRadius: 20, fontSize: 11, border: `1px solid ${filter === k ? "#c9a227" : "rgba(201,162,39,.3)"}`, background: filter === k ? "linear-gradient(135deg,#8b6f1a,#c9a227)" : "transparent", color: filter === k ? "#070f1e" : "#e8dfc0", cursor: "pointer", fontFamily: "inherit" } }, l))),
@@ -19997,13 +20029,19 @@ function DailyTasks({ session, initialFilter, onFilterConsumed } = {}) {
                             React.createElement("span", { style: { flex: 1, fontSize: 12, color: i.status === "Done" ? "#8a9bbc" : "#e8dfc0", textDecoration: i.status === "Done" ? "line-through" : "none" } },
                                 i.text,
                                 i.linkedFrom && React.createElement("span", { style: { fontSize: 9, color: "#8a9bbc", marginLeft: 6 } }, "\uD83E\uDD1D supporting")),
-                            (userLvl !== "L3" || t.memberId === (session && session.memberId)) && React.createElement("button", { title: i.status === "Paused" ? "Resume task" : "Pause task (e.g. waiting on external department)", onClick: () => { if (i.status === "Paused")
-                                    resumeTaskItem(t.id, i.id);
-                                else {
-                                    const reason = prompt("Reason for pausing (e.g. Waiting on External Department):", "Waiting on External Department");
-                                    if (reason !== null)
-                                        pauseTaskItem(t.id, i.id, reason);
-                                } }, style: { border: "1px solid rgba(138,155,188,.35)", background: "transparent", color: "#8a9bbc", borderRadius: 20, padding: "3px 8px", fontSize: 11, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit" } }, i.status === "Paused" ? "\u25B6" : "\u23F8"),
+                            (userLvl !== "L3" || t.memberId === (session && session.memberId)) && (() => { const pendingReq = pendingPauseRequestFor(i.id); if (i.status !== "Paused" && pendingReq)
+                                    return React.createElement("span", { className: "pill", style: { fontSize: 10, background: "rgba(244,162,97,.15)", borderColor: "rgba(244,162,97,.4)", color: "#f4a261" } }, "\u23F3 Pause Requested"); return React.createElement("button", { title: i.status === "Paused" ? "Resume task" : (isSuperAdminSession(session) ? "Pause task (e.g. waiting on external department)" : "Raise a pause request \u2014 requires DGM approval"), onClick: () => { if (i.status === "Paused")
+                                        resumeTaskItem(t.id, i.id);
+                                    else if (isSuperAdminSession(session)) {
+                                        const reason = prompt("Reason for pausing (e.g. Waiting on External Department):", "Waiting on External Department");
+                                        if (reason !== null)
+                                            pauseTaskItem(t.id, i.id, reason);
+                                    }
+                                    else {
+                                        const reason = prompt("Reason for pause request (e.g. Waiting on External Department) \u2014 this needs DGM approval before the task pauses:", "Waiting on External Department");
+                                        if (reason !== null)
+                                            requestPauseTask(t.id, i.id, session.memberId, reason, i.text);
+                                    } }, style: { border: "1px solid rgba(138,155,188,.35)", background: "transparent", color: "#8a9bbc", borderRadius: 20, padding: "3px 8px", fontSize: 11, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit" } }, i.status === "Paused" ? "\u25B6" : "\u23F8"); })(),
                             React.createElement("button", { disabled: i.status === "Paused" || i.status === "Done", onClick: () => { const nextStatus = cycleStatus(i.status); if (i.status !== "Paused" && i.status !== "Done" && (nextStatus !== "Done" ? (userLvl !== "L3" || t.memberId === (session && session.memberId)) : (isAccPerson || isSuperAdminSession(session))))
                                     updateTaskStatus(t.id, i.id, nextStatus); }, className: `pill ${sStyle(i.status) || "pill-low"}`, style: { cursor: (i.status === "Paused" || i.status === "Done") ? "default" : "pointer", fontSize: 10, whiteSpace: "nowrap", opacity: i.status === "Paused" ? .6 : 1, background: i.status === "Done" ? "rgba(6,214,160,.15)" : i.status === "In Progress" ? "rgba(201,162,39,.15)" : i.status === "Paused" ? "rgba(138,155,188,.15)" : "transparent", borderColor: i.status === "Done" ? "rgba(6,214,160,.4)" : i.status === "In Progress" ? "rgba(201,162,39,.4)" : i.status === "Paused" ? "rgba(138,155,188,.4)" : "rgba(201,162,39,.2)", color: i.status === "Done" ? "#06d6a0" : i.status === "In Progress" ? "#f0c040" : i.status === "Paused" ? "#8a9bbc" : "#8a9bbc" } }, i.status === "Paused" ? "\u23F8 Paused" : i.status),
                             i.status !== "Done" && i.status !== "Paused" && (isAccPerson || isSuperAdminSession(session)) && React.createElement("button", { title: isAccPerson ? "Finish this task" : "Super Admin override \u2014 finishing on behalf of the Accountable partner", onClick: () => updateTaskStatus(t.id, i.id, "Done"), style: { border: "1px solid rgba(6,214,160,.4)", background: "rgba(6,214,160,.15)", color: "#06d6a0", borderRadius: 20, padding: "3px 10px", fontSize: 10, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit" } }, "\u2713 Finish"),
@@ -22038,13 +22076,14 @@ function AdminTab({ isAdmin, session }) {
     const tasks = useTasks();
     const audit = useAudit();
     const notifications = useNotifications();
+    const pauseRequests = usePauseRequests();
     const [pinOv, setPinOv] = useState(() => readPinOverrides());
     const levelOv = useLevelOverrides();
     const [revealed, setRevealed] = useState(null);
     const [notifMsg, setNotifMsg] = useState("");
     const [notifPriority, setNotifPriority] = useState("Normal");
     const [importMsg, setImportMsg] = useState(null);
-    const BACKUP_KEYS = ["dra.tasks.v1", "dra.resboard.v1", "dra.workreports.v1", "dra.movement.v1", "dra.goals.v1", "dra.notifications.v1", "dra.knowledgebase.v1", "dra.momlibrary.v1", "dra.audit.v1", "dra.pinoverrides.v1", "dra.leveloverrides.v1", "dra.agencies.v1", "dra.loginlock.v1", "dra.promotions.v1", "dra.reports"];
+    const BACKUP_KEYS = ["dra.tasks.v1", "dra.resboard.v1", "dra.workreports.v1", "dra.movement.v1", "dra.goals.v1", "dra.notifications.v1", "dra.knowledgebase.v1", "dra.momlibrary.v1", "dra.audit.v1", "dra.pinoverrides.v1", "dra.leveloverrides.v1", "dra.agencies.v1", "dra.pauserequests.v1", "dra.loginlock.v1", "dra.promotions.v1", "dra.reports"];
     const exportAllData = () => {
         localStorage.setItem("dra.lastbackup.v1", String(Date.now()));
         const data = {};
@@ -22132,6 +22171,24 @@ function AdminTab({ isAdmin, session }) {
                         React.createElement("td", { style: { color: "#8a9bbc" } }, "Thanga, Vijay, Sherly, Srini, Sreeni, Vidhoo, Manoj"),
                         React.createElement("td", { style: { color: "#e8dfc0" } }, "My Day, My Profile, Calendar, Task of the Day, Daily Tasks, Work Report, Movement Register, KRA & KPI, External Agencies \u2014 own data only; can only Finish tasks they're personally Accountable on")))),
             React.createElement("p", { style: { fontSize: 10, color: "#8a9bbc", marginTop: 10 } }, "Rule of thumb: access level (L1/L2/L3) only controls which tabs a person can see. All override abilities \u2014 finishing someone else's task, MoM Library, this panel \u2014 are gated on the Super Admin flag alone, never on level. This matrix reflects how access is currently wired into the dashboard \u2014 it's shown here for reference, not editable. Per-member level changes below take effect the next time that person opens the app.")),
+        (() => { const pendingReqs = pauseRequests.filter(r => r.status === "Pending"); return React.createElement("div", { className: "card", style: { marginBottom: 14, border: "1px solid rgba(244,162,97,.4)" } },
+            React.createElement("div", { style: { fontSize: 10, textTransform: "uppercase", letterSpacing: "1px", color: "#f4a261", marginBottom: 4 } },
+                "\u23F8 Pending Pause Requests",
+                pendingReqs.length > 0 && React.createElement("span", { style: { marginLeft: 8, background: "#e63946", color: "#fff", fontSize: 9, fontWeight: 800, borderRadius: 8, padding: "1px 6px" } }, pendingReqs.length)),
+            React.createElement("p", { style: { fontSize: 11, color: "#8a9bbc", marginBottom: 10 } }, "Only the DGM (Super Admin) can approve or reject a pause request raised by the team. Approving pauses the task immediately with the stated reason; rejecting leaves it running as-is."),
+            pendingReqs.length === 0 ? React.createElement("div", { style: { fontSize: 12, color: "#8a9bbc", textAlign: "center", padding: 10 } }, "No pending pause requests.") : pendingReqs.map(r => { const mm = MEMBERS.find(x => x.id === r.memberId); return React.createElement("div", { key: r.id, style: { border: "1px solid rgba(244,162,97,.25)", borderRadius: 8, padding: 10, marginBottom: 8 } },
+                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 } },
+                    React.createElement("div", null,
+                        React.createElement("div", { style: { fontWeight: 700, fontSize: 13, color: "#e8dfc0" } }, (mm === null || mm === void 0 ? void 0 : mm.name) || r.memberId),
+                        React.createElement("div", { style: { fontSize: 11, color: "#8a9bbc", marginTop: 2 } }, r.itemText)),
+                    React.createElement("div", { style: { fontSize: 9, color: "#8a9bbc", whiteSpace: "nowrap" } }, r.requestedAt)),
+                React.createElement("div", { style: { fontSize: 11, color: "#f4a261", fontStyle: "italic", marginBottom: 8 } },
+                    "Reason: ",
+                    r.reason || "\u2014"),
+                React.createElement("div", { style: { display: "flex", gap: 8 } },
+                    React.createElement("button", { className: "gold-btn", style: { flex: 1, fontSize: 11 }, onClick: () => approvePauseRequest(r.id, session.memberId) }, "\u2713 Approve"),
+                    React.createElement("button", { className: "ghost-btn", style: { flex: 1, fontSize: 11, color: "#ff8a92", borderColor: "rgba(230,57,70,.4)" }, onClick: () => { const note = prompt("Reason for rejecting (optional):", ""); if (note !== null)
+                            rejectPauseRequest(r.id, session.memberId, note); } }, "\u2715 Reject"))); })); })(),
         React.createElement("div", { className: "card", style: { marginBottom: 14, overflowX: "auto", border: "1px solid rgba(201,162,39,.3)" } },
             React.createElement("div", { style: { fontSize: 10, textTransform: "uppercase", letterSpacing: "1px", color: "#c9a227", marginBottom: 4 } }, "\uD83D\uDC65 Member Level & Role Management"),
             React.createElement("p", { style: { fontSize: 11, color: "#8a9bbc", marginBottom: 10 } }, "Change any member's access level or grant/revoke Super Admin rights. Jana and the Demo account are fixed and can't be changed here."),
