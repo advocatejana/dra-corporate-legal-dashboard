@@ -17337,7 +17337,11 @@ const GOLD = "#c9a227", NAVY = "#070f1e", GREEN = "#06d6a0", RED = "#e63946", AM
 const TAGLINE = "PLAN · EXECUTE · REPORT · IMPROVE";
 const SIG = "\n\nAdv. Jana Narayana Vighneshwaran\nDGM – Legal Corporate · DRA Homes\nPLAN · EXECUTE · REPORT · IMPROVE";
 const ADMIN_PIN = "0786";
-const NOT_SUBMITTED_IDS = ["sherly", "vidhoo"];
+function computeNotSubmittedToday(tasks) {
+    const today = todayDMY();
+    const submittedIds = new Set(tasks.filter(t => t.date === today && t.items && t.items.length).map(t => t.memberId));
+    return MEMBERS.filter(m => !m.isDemo && !submittedIds.has(m.id)).map(m => m.id);
+}
 const MEMBERS = [
     { id: "jana",   name: "Adv. Jana Narayana Vighneshwaran", short: "Adv.JANA",   role: "DGM – Legal Corporate",           dept: "Management",   phone: "+919150013160", email: "jana.nv@drahomes.in",         pin: "3160", isManager: true, isSuperAdmin: true, av: "#c9a227", level: "L1" },
     { id: "anusha", name: "Adv. V. Anusha",                   short: "Adv.Anusha", role: "AGM – Legal & Documentation",     dept: "Registration", phone: "+919952914085", email: "anusha.v@drahomes.in",        pin: "4085", av: "#2a9d8f",  level: "L2" },
@@ -17965,6 +17969,116 @@ const SEED_TASKS = [
             { id: "jana1607-3", text: "GP Opinion \u2014 Revised", status: "In Progress" },
             { id: "jana1607-4", text: "Collect the team's tasks", status: "In Progress" }
         ] },
+    // ── 17.07.2026 ──
+    { id: "vijay-1707", memberId: "vijay", date: "17.07.2026", submittedAt: "10:12 AM", items: [
+            { id: "vijay1707-1", text: "Arrange TP and registration tokens for upcoming registrations", status: "In Progress" },
+            { id: "vijay1707-2", text: "Attend today's Skylantis registration at Neelankarai", status: "In Progress" },
+            { id: "vijay1707-3", text: "Prepare today's and upcoming registration documents", status: "In Progress" },
+            { id: "vijay1707-4", text: "Follow up on upcoming registrations and coordinate with the concerned teams for readiness", status: "In Progress" }
+        ] },
+    { id: "guru-1707", memberId: "guru", date: "17.07.2026", submittedAt: "10:13 AM", items: [
+            { id: "guru1707-1", text: "Arrange TP and registration tokens for upcoming registrations", status: "In Progress" },
+            { id: "guru1707-2", text: "Prepare today's and upcoming registration documents", status: "In Progress" },
+            { id: "guru1707-3", text: "Follow up on upcoming registrations and coordinate with the concerned teams for readiness", status: "In Progress" },
+            { id: "guru1707-4", text: "Verify the Secura Amendment to Mortgage Deed", status: "In Progress" },
+            { id: "guru1707-5", text: "Verify ERP IDs", status: "In Progress" }
+        ] },
+    { id: "srini-1707", memberId: "srini", date: "17.07.2026", submittedAt: "10:20 AM", items: [
+            { id: "srini1707-1", text: "Prepare and print AOS", status: "In Progress" },
+            { id: "srini1707-2", text: "Prepare and print TPA", status: "In Progress" },
+            { id: "srini1707-3", text: "Complete AOS uploading in WorkHall", status: "In Progress" }
+        ] },
+    { id: "sherly-1707", memberId: "sherly", date: "17.07.2026", submittedAt: "10:20 AM", items: [
+            { id: "sherly1707-1", text: "Astra TPA \u2014 PNB Housing Finance vetting", status: "In Progress" },
+            { id: "sherly1707-2", text: "Share the vetted draft with the bank and follow up for e-signature", status: "In Progress" }
+        ] },
+    { id: "ramp-1707", memberId: "ramp", date: "17.07.2026", submittedAt: "10:22 AM", items: [
+            { id: "ramp1707-1", text: "Dispatch intimation to TNRERA regarding the filing of the appeal against the penalty notice", status: "In Progress" },
+            { id: "ramp1707-2", text: "Prepare the appeal against the penalty notice", status: "In Progress" }
+        ] },
+    { id: "vidhoo-1707", memberId: "vidhoo", date: "17.07.2026", submittedAt: "10:23 AM", items: [
+            { id: "vidhoo1707-1", text: "Update today's registration documents", status: "In Progress" },
+            { id: "vidhoo1707-2", text: "Prepare upcoming registration documents", status: "In Progress" },
+            { id: "vidhoo1707-3", text: "Follow up on upcoming registrations and coordinate with the concerned teams for readiness", status: "In Progress" },
+            { id: "vidhoo1707-4", text: "Update ERP Sale Deed drafts", status: "In Progress" },
+            { id: "vidhoo1707-5", text: "Create ERP ID for legal expenses", status: "In Progress" }
+        ] },
+    { id: "thanga-1707", memberId: "thanga", date: "17.07.2026", submittedAt: "10:24 AM", items: [
+            { id: "thanga1707-1", text: "Collected project details for DRA Venkatesh Richburg and prepared the APF builder's letters to initiate the APF process with ICICI Bank and HDFC Bank", status: "In Progress" },
+            { id: "thanga1707-2", text: "Followed up with ICICI Bank and HDFC Bank regarding the APF process for the DRA Cove Project", status: "In Progress" },
+            { id: "thanga1707-3", text: "Visited the panel advocate regarding the DRA Cove Project to discuss and coordinate APF-related legal matters", status: "In Progress" }
+        ] },
+    { id: "manoj-1707", memberId: "manoj", date: "17.07.2026", submittedAt: "10:26 AM", items: [
+            { id: "manoj1707-1", text: "Prepare the Booking Daily Report", status: "In Progress" },
+            { id: "manoj1707-2", text: "Verify Booking Forms", status: "In Progress" },
+            { id: "manoj1707-3", text: "Process Allotment Letters", status: "In Progress" },
+            { id: "manoj1707-4", text: "Print Skylantis Sale Deeds", status: "In Progress" },
+            { id: "manoj1707-5", text: "Process NOCs", status: "In Progress" }
+        ] },
+    // ── 18.07.2026 \u2014 Jana's personal review/decision queue ──
+    { id: "jana-1807", memberId: "jana", date: "18.07.2026", submittedAt: "09:00 AM", items: [
+            { id: "jana1807-1", text: "Verify with SRO office whether Avalon 139 & 140 customer truly collected original Sale Deed; respond to Gayathri with confirmation/proof required (via Gayathri C.)", status: "Planned" },
+            { id: "jana1807-2", text: "Review termination legal approval \u2014 TER_3 | 301-Jamuna A-DRA Polaris (WorkHall) (via System/WorkHall) \u2014 Due 18 Jul, 3:29 PM", status: "Planned" },
+            { id: "jana1807-3", text: "Review corrected draft \u2014 Extension of Mortgage / DRA Secura Top Up / Aluminium Formwork; confirm approval (via Vijayaraghavan V.)", status: "Planned" },
+            { id: "jana1807-4", text: "Decide on Skylantis Blk-2-901 request to add car parking slot number in Sale Deed (via Vinodh E.)", status: "Planned" },
+            { id: "jana1807-5", text: "Review vetted PNBHFL TPA draft (track changes); confirm revised clauses with banker (via Sherly J.)", status: "Planned" },
+            { id: "jana1807-6", text: "Review Adventurus's comments/corrections on updated agreement + scope of work doc (via Vetrevel, Adventurus)", status: "Planned" },
+            { id: "jana1807-7", text: "Review Marina Mall Kiosk MoU comments and revert (via Ramprasanth S.)", status: "Planned" },
+            { id: "jana1807-8", text: "Follow up on overdue AOS/TPA tasks (cc'd by Srinivasan) \u2014 check if input needed (via Srinivasan K.)", status: "Planned" },
+            { id: "email-2d5b539348", text: "Review customer complaint \u2014 wrong plan in registered Sale Deed, Skylantis Block-1 Unit 205 (fwd. to Anusha for action, via Sriram M.)", status: "Planned", source: "Sriram M." },
+            { id: "email-9a87ab46a0", text: "Follow up \u2014 RBL Bank NOC still pending for DRA Cove APF; panel advocate waiting (ROC Search Report already sent by Jeetesh) (via Thangalakshmi A.)", status: "Planned", source: "Thangalakshmi A.", priorityOverride: "HIGH" },
+            { id: "email-74a5d4493e", text: "Original Registered Sale Deed handover \u2014 Secura Ph-2-44, customer completed full payment (via Rekha P.)", status: "Planned", source: "Rekha P." },
+            { id: "email-336a823734", text: "Review DRA Venkatesh Richburg APF information package and provide legal clarification/approval (via Vinayagamoorthy P.)", status: "Planned", source: "Vinayagamoorthy P.", priorityOverride: "HIGH" },
+            { id: "email-45a39973a6", text: "Ensure Beena Clover cancellation communication is dispatched via registered post and email (Internal Legal Correspondence)", status: "Planned", priorityOverride: "HIGH" },
+            { id: "email-679c3bd52f", text: "Resolve Axis Bank first-round check query \u2014 DRA Cove Kanchipuram project approval; urgent resolution requested (via Axis Bank)", status: "Planned", source: "Axis Bank", priorityOverride: "HIGH" },
+            { id: "email-bb4d65d216", text: "Advise on documentation & timeframe for RERA refund closure \u2014 Ms. Revathi, DRA Beena Clover Block 1/206 (MD already approved; awaiting legal follow-through) (via Gayathri C.)", status: "Planned", source: "Gayathri C.", priorityOverride: "HIGH" },
+            { id: "email-c3e15ba76c", text: "Advise on waiver of delayed payment charges \u2014 Ms. Minu Mary Abraham, Skylantis B 803 (via Gayathri C.)", status: "Planned", source: "Gayathri C." },
+            { id: "email-49dd9da029", text: "Respond to customer query \u2014 planned development clarification, DRA Beena Clover Unit B1-207 (via Narayanan Viswanathan)", status: "Planned", source: "Narayanan Viswanathan", priorityOverride: "HIGH" },
+            { id: "email-e219809868", text: "Arrange and provide SRO LOD urgently \u2014 registration scheduled tomorrow, Extension of Mortgage/DRA Secura Top Up/Aluminium Formwork (via Vijayaraghavan V.)", status: "Planned", source: "Vijayaraghavan V.", priorityOverride: "HIGH" },
+            { id: "email-ce27a71d62", text: "Respond to TNRERA \u2014 particulars called for on Completion Application TN/29/B/0467/2023 (via Prabhakar S.)", status: "Planned", source: "Prabhakar S.", priorityOverride: "HIGH" },
+            { id: "email-c0c889d569", text: "Discuss RCP No.54/TNRERA appeal approach with MD & Ravi \u2014 Para 3.3 concern flagged (via Balaji N.)", status: "Planned", source: "Balaji N.", priorityOverride: "HIGH" },
+            { id: "email-58d2738237", text: "Schedule Registration Hub Model presentation with Revathi (Ravi/Gayatri/Kamal to attend) (via MD - Ranjeeth Rathod)", status: "Planned", source: "Ranjeeth Rathod (MD)" }
+        ] },
+    // ── 20.07.2026 ──
+    { id: "vijay-2007", memberId: "vijay", date: "20.07.2026", submittedAt: "10:04 AM", items: [
+            { id: "vijay2007-1", text: "Arrange TP and registration tokens for upcoming registrations", status: "In Progress" },
+            { id: "vijay2007-2", text: "Verify and correct upcoming registration documents", status: "In Progress" },
+            { id: "vijay2007-3", text: "Follow up on upcoming registrations and coordinate with the concerned teams for readiness", status: "In Progress" }
+        ] },
+    { id: "ramp-2007", memberId: "ramp", date: "20.07.2026", submittedAt: "10:04 AM", items: [
+            { id: "ramp2007-1", text: "Dispatch RERA intimation", status: "In Progress" },
+            { id: "ramp2007-2", text: "Prepare Beena Clover representation", status: "In Progress" },
+            { id: "ramp2007-3", text: "Prepare RCP settlement email", status: "In Progress" }
+        ] },
+    { id: "srini-2007", memberId: "srini", date: "20.07.2026", submittedAt: "10:13 AM", items: [
+            { id: "srini2007-1", text: "Prepare and print AOS", status: "In Progress" },
+            { id: "srini2007-2", text: "Prepare and print TPA", status: "In Progress" },
+            { id: "srini2007-3", text: "Complete AOS uploading in WorkHall", status: "In Progress" },
+            { id: "srini2007-4", text: "Hand over Skylantis documents", status: "In Progress" },
+            { id: "srini2007-5", text: "Print Skylantis Sale Deed for name transfer", status: "In Progress" }
+        ] },
+    { id: "sreeni-2007", memberId: "sreeni", date: "20.07.2026", submittedAt: "10:14 AM", items: [
+            { id: "sreeni2007-1", text: "Follow up on 4 registrations scheduled for 23.07.2026", status: "In Progress" },
+            { id: "sreeni2007-2", text: "Discuss WorkHall changes with Logu", status: "In Progress" },
+            { id: "sreeni2007-3", text: "Follow up on future registrations", status: "In Progress" },
+            { id: "sreeni2007-4", text: "Send registration checklist and registration requests for future registrations", status: "In Progress" },
+            { id: "sreeni2007-5", text: "Collect registration payment from 1 Skylantis customer", status: "In Progress" }
+        ] },
+    { id: "sherly-2007", memberId: "sherly", date: "20.07.2026", submittedAt: "10:18 AM", items: [
+            { id: "sherly2007-1", text: "Follow up on Astra TPA", status: "In Progress" },
+            { id: "sherly2007-2", text: "Prepare Inara Sale Deed drafts", status: "In Progress" }
+        ] },
+    { id: "thanga-2007", memberId: "thanga", date: "20.07.2026", submittedAt: "10:19 AM", items: [
+            { id: "thanga2007-1", text: "Prepare APF builder's letters for DRA Venkatesh Richburg to initiate the APF process with ICICI Bank and HDFC Bank", status: "In Progress" },
+            { id: "thanga2007-2", text: "Follow up with ICICI Bank and HDFC Bank regarding the APF process for the DRA Cove Project", status: "In Progress" },
+            { id: "thanga2007-3", text: "Visit the panel advocate regarding the DRA Cove Project to discuss and coordinate APF-related legal matters", status: "In Progress" }
+        ] },
+    { id: "vidhoo-2007", memberId: "vidhoo", date: "20.07.2026", submittedAt: "10:19 AM", items: [
+            { id: "vidhoo2007-1", text: "Prepare documents for upcoming registrations", status: "In Progress" },
+            { id: "vidhoo2007-2", text: "Create Expense ID", status: "In Progress" },
+            { id: "vidhoo2007-3", text: "Prepare Receipt Deed documents", status: "In Progress" },
+            { id: "vidhoo2007-4", text: "Complete project-wise ERP Sale Deed alignment in coordination with the ERP team", status: "In Progress" }
+        ] },
 ];
 const RULES = [
     { title: "Daily Work Report", body: "Mandatory submission by 11:59 PM every working day. Non-submission recorded as non-compliance.", critical: true },
@@ -18050,6 +18164,7 @@ function effectiveWorkType(item) { return item.workType || detectWorkType(item.t
 function detectPriority(text) { const t = ` ${text.toLowerCase()} `; if (HIGH_KWS.some(k => t.includes(k)))
     return "HIGH"; if (MED_KWS.some(k => t.includes(k)))
     return "MED"; return "LOW"; }
+function effectivePriority(item) { return (item && item.priorityOverride) || detectPriority((item && item.text) || ""); }
 function ini(name) { return name.replace(/^Adv\.?\s*/i, "").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase(); }
 function openWA(phone, text) { window.open(`https://wa.me/${phone.replace(/\D/g, "")}?text=${encodeURIComponent(text)}`, "_blank"); }
 function openMailto(email, subject, body) { window.location.href = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`; }
@@ -18357,6 +18472,19 @@ function setDependencyTag(tid, iid, tag) {
     localStorage.setItem(TK, JSON.stringify(next));
     _listeners.forEach(l => l());
 }
+function setTaskDetails(tid, iid, patch) {
+    const tasks = readTasks();
+    let touched = null;
+    tasks.forEach(t => t.items.forEach(i => { if (i.id === iid)
+        touched = i; }));
+    if (!touched)
+        return;
+    const origId = touched.linkedFrom ? touched.linkedFrom : iid;
+    const relatedIds = new Set([origId, `${origId}__linked`, `${origId}__linked1`, `${origId}__linked2`]);
+    const next = tasks.map(t => (Object.assign(Object.assign({}, t), { items: t.items.map(i => relatedIds.has(i.id) ? Object.assign(Object.assign({}, i), patch) : i) })));
+    localStorage.setItem(TK, JSON.stringify(next));
+    _listeners.forEach(l => l());
+}
 function setWorkType(tid, iid, type) {
     const tasks = readTasks();
     let touched = null;
@@ -18588,20 +18716,20 @@ function rankSupportCandidates(accountableId, taskText, excludeIds, workType) {
         }
         if (kraScore > 0) {
             score += kraScore * (isExternal ? 5 : 10);
-            reasons.push({ text: "KRA area matches this task", icon: "\uD83C\uDFAF" });
+            reasons.push({ text: "KRA area matches this task", icon: "\uD83C\uDFAF", type: "kra" });
         }
         if (m.id === buddy) {
             score += 15;
-            reasons.push({ text: "Regular accountability partner", icon: "\uD83E\uDD1D" });
+            reasons.push({ text: "Regular accountability partner", icon: "\uD83E\uDD1D", type: "buddy" });
         }
         const oc = openCount[m.id] || 0;
         score += Math.max(0, (isExternal ? 15 : 10) - oc);
-        reasons.push({ text: `${oc} open task${oc === 1 ? "" : "s"} right now`, icon: oc <= 2 ? "\uD83D\uDFE2" : oc <= 5 ? "\uD83D\uDFE1" : "\uD83D\uDD34" });
+        reasons.push({ text: `${oc} open task${oc === 1 ? "" : "s"} right now`, icon: oc <= 2 ? "\uD83D\uDFE2" : oc <= 5 ? "\uD83D\uDFE1" : "\uD83D\uDD34", type: "workload" });
         if (isExternal) {
             const load = externalLoad[m.id] || 0;
             const fairnessBonus = Math.round((1 - load / maxExternalLoad) * 15);
             score += fairnessBonus;
-            reasons.push({ text: `${load} external task${load === 1 ? "" : "s"} this month`, icon: load === 0 ? "\uD83C\uDD95" : load <= 2 ? "\u2696\uFE0F" : "\u26A0\uFE0F" });
+            reasons.push({ text: `${load} external task${load === 1 ? "" : "s"} this month`, icon: load === 0 ? "\uD83C\uDD95" : load <= 2 ? "\u2696\uFE0F" : "\u26A0\uFE0F", type: "workload" });
         }
         return { id: m.id, name: m.name, short: m.short, role: m.role, score, openCount: oc, externalLoad: externalLoad[m.id] || 0, reasons };
     }).sort((a, b) => b.score - a.score);
@@ -18644,7 +18772,7 @@ function seedBoardFromTasks() {
     const existingItemIds = new Set(board.map(r => r.linkedItemId).filter(Boolean));
     tasks.forEach(t => { t.items.forEach(i => { if (!i.linkedFrom && !existingItemIds.has(i.id)) {
         const owner = i.accountable || t.memberId;
-        createResolution({ title: i.text, mid: owner, sid: i.supporting || null, priority: i.p || detectPriority(i.text), status: AUTO_STATUS_MAP[i.status] || "Assigned", category: matchKraCategory(owner, i.text), linkedItemId: i.id, auto: true, createdDate: t.date });
+        createResolution({ title: i.text, mid: owner, sid: i.supporting || null, priority: i.p || effectivePriority(i), status: AUTO_STATUS_MAP[i.status] || "Assigned", category: matchKraCategory(owner, i.text), linkedItemId: i.id, auto: true, createdDate: t.date });
         existingItemIds.add(i.id);
     } }); });
     const itemStatusById = {};
@@ -19929,10 +20057,11 @@ function TaskOfTheDay({ session }) {
                     React.createElement("button", { className: "gold-btn", style: { fontSize: 12 }, onClick: submitMore }, "Add to Today's List")),
                 msg && React.createElement("div", { style: { fontSize: 11, color: "#06d6a0", marginTop: 8 } }, msg)))));
 }
-function DailyTasks({ session, initialFilter, onFilterConsumed } = {}) {
+function DailyTasks({ session, initialFilter, onFilterConsumed, setTab } = {}) {
     const userLvl = getUserLevel(session);
     const m = MEMBERS.find(x => x.id === (session === null || session === void 0 ? void 0 : session.memberId));
     const tasks = useTasks();
+    const notSubmittedIds = useMemo(() => computeNotSubmittedToday(tasks), [tasks]);
     const [pasteOpen, setPasteOpen] = useState(false);
     const [txt, setTxt] = useState("");
     const [msg, setMsg] = useState(null);
@@ -19940,9 +20069,10 @@ function DailyTasks({ session, initialFilter, onFilterConsumed } = {}) {
     const [dateFilter, setDateFilter] = useState("all");
     const [memberFilter, setMemberFilter] = useState("all");
     const [matchFor, setMatchFor] = useState(null);
+    const [detailsFor, setDetailsFor] = useState(null);
     useEffect(() => { if (initialFilter) { setFilter(initialFilter); if (onFilterConsumed) onFilterConsumed(); } }, [initialFilter]);
-    const enriched = useMemo(() => tasks.map(t => (Object.assign(Object.assign({}, t), { items: t.items.map(i => (Object.assign(Object.assign({}, i), { p: detectPriority(i.text) }))) }))), [tasks]);
-    const availableDates = useMemo(() => [...new Set(tasks.map(t => t.date).filter(Boolean))].sort((a, b) => parseDMY(b) - parseDMY(a)), [tasks]);
+    const enriched = useMemo(() => tasks.map(t => (Object.assign(Object.assign({}, t), { items: t.items.map(i => (Object.assign(Object.assign({}, i), { p: effectivePriority(i) }))) }))), [tasks]);
+    const availableDates = useMemo(() => [...new Set([todayDMY(), ...tasks.map(t => t.date).filter(Boolean)])].sort((a, b) => parseDMY(b) - parseDMY(a)), [tasks]);
     const availableMembers = useMemo(() => MEMBERS.filter(x => !x.isDemo && tasks.some(t => t.memberId === x.id)), [tasks]);
     const dateScoped = useMemo(() => enriched.filter(t => (userLvl !== "L3" || t.memberId === (session && session.memberId)) && (dateFilter === "all" || t.date === dateFilter) && (memberFilter === "all" || t.memberId === memberFilter)), [enriched, dateFilter, memberFilter, userLvl, session]);
     const stats = useMemo(() => { const all = dateScoped.flatMap(t => t.items); return { total: all.length, high: all.filter(i => i.p === "HIGH").length, inProg: all.filter(i => i.status === "In Progress").length, done: all.filter(i => i.status === "Done").length }; }, [dateScoped]);
@@ -20055,6 +20185,7 @@ function DailyTasks({ session, initialFilter, onFilterConsumed } = {}) {
                             i.status !== "Done" && !isAccPerson && isSupPerson && React.createElement("button", { title: "Mark your own support role as done \u2014 this does not finish the whole task", onClick: () => toggleSupportDone(t.id, i.id, session.memberId), style: { border: `1px solid ${myPartDone ? "rgba(6,214,160,.4)" : "rgba(201,162,39,.35)"}`, background: myPartDone ? "rgba(6,214,160,.15)" : "transparent", color: myPartDone ? "#06d6a0" : "#c9a227", borderRadius: 20, padding: "3px 10px", fontSize: 10, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit" } }, myPartDone ? "\u2713 My Part Done" : "Mark My Part Done"),
                             i.status === "Done" && (isAccPerson || userLvl !== "L3" || isSuperAdminSession(session)) && React.createElement("button", { title: "Flag this completed task for rework/errors \u2014 affects appraisal scoring", onClick: () => toggleErrorFlag(t.id, i.id), style: { border: `1px solid ${i.hasError ? "rgba(230,57,70,.5)" : "rgba(201,162,39,.25)"}`, background: i.hasError ? "rgba(230,57,70,.15)" : "transparent", color: i.hasError ? "#ff8a92" : "#8a9bbc", borderRadius: 20, padding: "3px 10px", fontSize: 10, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit" } }, i.hasError ? "\u26A0 Rework Flagged" : "Flag Rework"),
                             (isAccPerson || userLvl !== "L3" || isSuperAdminSession(session)) && (() => { const wtv = effectiveWorkType(i); return React.createElement("button", { title: "External work (commute, risk, money handled, time-consuming) is weighted 1.5\u00D7 in appraisal scoring vs Internal deskwork. Auto-detected \u2014 tap to override.", onClick: () => setWorkType(t.id, i.id, wtv === "external" ? "internal" : "external"), style: { border: `1px solid ${wtv === "external" ? "rgba(244,162,97,.5)" : "rgba(138,155,188,.3)"}`, background: wtv === "external" ? "rgba(244,162,97,.15)" : "transparent", color: wtv === "external" ? "#f4a261" : "#8a9bbc", borderRadius: 20, padding: "3px 10px", fontSize: 10, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit" } }, wtv === "external" ? "\uD83D\uDE97 External (1.5\u00D7)" : "\uD83C\uDFE2 Internal"); })(),
+                            (isAccPerson || userLvl !== "L3" || isSuperAdminSession(session)) && React.createElement("button", { title: "Set Source, Due date/time, and Priority override for this task", onClick: () => setDetailsFor({ tid: t.id, iid: i.id, source: i.source || "", dueAt: i.dueAt || "", priorityOverride: i.priorityOverride || "" }), style: { border: `1px solid ${(i.source || i.dueAt || i.priorityOverride) ? "rgba(201,162,39,.5)" : "rgba(138,155,188,.3)"}`, background: (i.source || i.dueAt || i.priorityOverride) ? "rgba(201,162,39,.12)" : "transparent", color: (i.source || i.dueAt || i.priorityOverride) ? "#c9a227" : "#8a9bbc", borderRadius: 20, padding: "3px 10px", fontSize: 10, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit" } }, "\uD83D\uDCCC Details"),
                             i.status !== "Done" && (isAccPerson || userLvl !== "L3" || isSuperAdminSession(session)) && React.createElement("select", { title: "Why is this still open? Helps explain repeated/dragging tasks that aren't actually neglected.", value: i.depTag || "", onChange: e => setDependencyTag(t.id, i.id, e.target.value), style: { fontSize: 9, padding: "2px 6px", borderRadius: 14, border: `1px solid ${i.depTag ? DEP_TAGS[i.depTag].color + "80" : "rgba(201,162,39,.25)"}`, background: i.depTag ? `${DEP_TAGS[i.depTag].color}20` : "transparent", color: i.depTag ? DEP_TAGS[i.depTag].color : "#8a9bbc", fontFamily: "inherit" } },
                                 React.createElement("option", { value: "" }, "No dependency tag"),
                                 React.createElement("option", { value: "external" }, "\u23F3 Waiting on External Party"),
@@ -20063,6 +20194,13 @@ function DailyTasks({ session, initialFilter, onFilterConsumed } = {}) {
                             "\u23F8\uFE0F ",
                             i.pauseReason,
                             i.pausedAt && ` — since ${i.pausedAt}`),
+                        (i.source || i.dueAt) && React.createElement("div", { style: { display: "flex", gap: 8, marginLeft: 24, marginTop: 2, flexWrap: "wrap" } },
+                            i.source && React.createElement("span", { style: { fontSize: 10, color: "#8a9bbc" } },
+                                "\uD83D\uDCE8 via ",
+                                i.source),
+                            i.dueAt && React.createElement("span", { style: { fontSize: 10, color: new Date(i.dueAt) < new Date() && i.status !== "Done" ? "#ff8a92" : "#8a9bbc", fontWeight: new Date(i.dueAt) < new Date() && i.status !== "Done" ? 700 : 400 } },
+                                "\u23F0 Due ",
+                                new Date(i.dueAt).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "numeric", minute: "2-digit", hour12: true }))),
                         React.createElement("div", { style: { display: "flex", gap: 10, marginTop: 4, marginLeft: 24, fontSize: 10, color: "#8a9bbc", alignItems: "center", flexWrap: "wrap" } },
                             userLvl === "L3" ? React.createElement(React.Fragment, null,
                                 React.createElement("span", null,
@@ -20096,7 +20234,7 @@ function DailyTasks({ session, initialFilter, onFilterConsumed } = {}) {
             }),
             React.createElement("div", { className: "card", style: { border: "1px solid rgba(230,57,70,.3)" } },
                 React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: "#ff8a92", marginBottom: 8 } }, "\u26A0\uFE0F Not submitted today"),
-                React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 } }, NOT_SUBMITTED_IDS.map(id => { const m = MEMBERS.find(x => x.id === id); return (React.createElement("span", { key: id, className: "pill pill-high", style: { fontSize: 11 } }, m.name)); })),
+                React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 } }, notSubmittedIds.length === 0 ? React.createElement("span", { style: { fontSize: 11, color: "#06d6a0" } }, "\u2713 Everyone has submitted today") : notSubmittedIds.map(id => { const m = MEMBERS.find(x => x.id === id); return (React.createElement("span", { key: id, className: "pill pill-high", style: { fontSize: 11 } }, m.name)); })),
                 React.createElement("div", { style: { fontSize: 10, color: "rgba(230,57,70,.6)", marginTop: 6 } }, "Task of the Day: 10:30 AM \u00B7 Work Report: 11:59 PM")),
             matchFor && (() => { const candidates = rankSupportCandidates(matchFor.accountable, matchFor.text, matchFor.exclude, matchFor.workType); return React.createElement("div", { className: "modal-bg", onClick: e => e.target === e.currentTarget && setMatchFor(null) },
                 React.createElement("div", { className: "modal" },
@@ -20113,9 +20251,28 @@ function DailyTasks({ session, initialFilter, onFilterConsumed } = {}) {
                             React.createElement("div", { style: { fontWeight: 700, fontSize: 13, color: idx === 0 ? "#f0c040" : "#e8dfc0" } }, idx === 0 ? "\u2B50 " : "", c.name),
                             React.createElement("button", { className: "gold-btn", style: { fontSize: 10, padding: "4px 12px" }, onClick: () => { updateItemPartner(matchFor.tid, matchFor.iid, matchFor.slot, c.id); setSupWorkType(matchFor.tid, matchFor.iid, matchFor.slot, matchFor.workType); notifySupportingMapped({ id: matchFor.iid, text: matchFor.text, accountable: matchFor.accountable, status: "In Progress" }, todayDMY(), c.id); setMatchFor(null); } }, "Assign")),
                         React.createElement("div", { style: { fontSize: 10, color: "#8a9bbc" } }, c.role),
-                        React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6 } }, c.reasons.map((r, ri) => React.createElement("span", { key: ri, style: { fontSize: 9, background: "rgba(201,162,39,.1)", border: "1px solid rgba(201,162,39,.25)", borderRadius: 10, padding: "2px 8px", color: "#c9a227" } }, r.icon, " ", r.text)))),
+                        React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6 } }, c.reasons.map((r, ri) => React.createElement("button", { key: ri, onClick: () => { if (r.type === "workload") { setMemberFilter(c.id); setMatchFor(null); } else if (r.type === "kra") { setMatchFor(null); setTab && setTab("kra"); } else if (r.type === "buddy") { setMatchFor(null); setTab && setTab("monitor"); } }, title: r.type === "workload" ? `View ${c.name}'s task list` : r.type === "kra" ? "View KRA & KPI" : r.type === "buddy" ? "View Accountability Partners in Monitor & Sync" : "", style: { fontSize: 9, background: "rgba(201,162,39,.1)", border: "1px solid rgba(201,162,39,.25)", borderRadius: 10, padding: "2px 8px", color: "#c9a227", cursor: "pointer", fontFamily: "inherit" } }, r.icon, " ", r.text)))),
                     candidates.length === 0 && React.createElement("div", { style: { textAlign: "center", color: "#8a9bbc", fontSize: 12, padding: 16 } }, "No available candidates \u2014 everyone eligible is already assigned to this task."))));
-            })())));
+            })()),
+        detailsFor && React.createElement("div", { className: "modal-bg", onClick: e => e.target === e.currentTarget && setDetailsFor(null) },
+            React.createElement("div", { className: "modal" },
+                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 } },
+                    React.createElement("div", { style: { fontFamily: "Cormorant Garamond,serif", fontSize: 20, color: "#f0c040" } }, "\uD83D\uDCCC Task Details"),
+                    React.createElement("button", { onClick: () => setDetailsFor(null), style: { background: "transparent", border: "1px solid rgba(201,162,39,.3)", borderRadius: 8, color: "#8a9bbc", width: 28, height: 28, cursor: "pointer", fontSize: 16 } }, "\u00D7")),
+                React.createElement("div", { style: { marginBottom: 10 } },
+                    React.createElement("div", { style: { fontSize: 10, color: "#8a9bbc", marginBottom: 4 } }, "Source (who requested this)"),
+                    React.createElement("input", { type: "text", value: detailsFor.source, placeholder: "e.g. Gayathri C., Vinodh E., WorkHall", onChange: e => setDetailsFor(Object.assign(Object.assign({}, detailsFor), { source: e.target.value })) })),
+                React.createElement("div", { style: { marginBottom: 10 } },
+                    React.createElement("div", { style: { fontSize: 10, color: "#8a9bbc", marginBottom: 4 } }, "Due Date & Time"),
+                    React.createElement("input", { type: "datetime-local", value: detailsFor.dueAt, onChange: e => setDetailsFor(Object.assign(Object.assign({}, detailsFor), { dueAt: e.target.value })) })),
+                React.createElement("div", { style: { marginBottom: 16 } },
+                    React.createElement("div", { style: { fontSize: 10, color: "#8a9bbc", marginBottom: 4 } }, "Priority Override"),
+                    React.createElement("select", { value: detailsFor.priorityOverride, onChange: e => setDetailsFor(Object.assign(Object.assign({}, detailsFor), { priorityOverride: e.target.value })) },
+                        React.createElement("option", { value: "" }, "Auto-detect from text"),
+                        React.createElement("option", { value: "HIGH" }, "High"),
+                        React.createElement("option", { value: "MED" }, "Medium"),
+                        React.createElement("option", { value: "LOW" }, "Low"))),
+                React.createElement("button", { className: "gold-btn", style: { width: "100%" }, onClick: () => { setTaskDetails(detailsFor.tid, detailsFor.iid, { source: detailsFor.source.trim() || null, dueAt: detailsFor.dueAt || null, priorityOverride: detailsFor.priorityOverride || null }); setDetailsFor(null); } }, "Save Details")))));
 }
 // ── WORK REPORT ───────────────────────────────────────────────────────
 function WorkReport({ session, initialFilter, onFilterConsumed }) {
@@ -20288,7 +20445,7 @@ function MonitorSync({ setTab, goTo } = {}) {
     const syncPct = all.length ? Math.round(done / all.length * 100) : 0;
     const syncColor = syncPct > 80 ? "#06d6a0" : syncPct > 50 ? "#f4a261" : "#e63946";
     const syncLabel = syncPct > 80 ? "Team is on track" : syncPct > 50 ? "Attention needed" : "Critical — action required";
-    const matched = done, gaps = all.filter(i => i.status === "Planned").length, inProg = all.filter(i => i.status === "In Progress").length, paused = all.filter(i => i.status === "Paused" && !i.linkedFrom).length, notSub = NOT_SUBMITTED_IDS.length;
+    const matched = done, gaps = all.filter(i => i.status === "Planned").length, inProg = all.filter(i => i.status === "In Progress").length, paused = all.filter(i => i.status === "Paused" && !i.linkedFrom).length, notSub = computeNotSubmittedToday(tasks).length;
     const selTask = latestTaskFor(tasks, selM);
     useEffect(() => { seedBoardFromTasks(); }, [tasks]);
     const resolutions = useBoard();
@@ -21578,7 +21735,7 @@ function GenerateReport({ setTab }) {
     const divider = React.createElement("div", { style: { borderTop: "1px dashed #999", margin: "10px 0" } });
     const resInfoFor = item => { const res = board.find(r => r.linkedItemId === item.id); const partners = [item.supporting, item.supporting2, item.supporting3].filter(Boolean).map(id => { const mm = MEMBERS.find(x => x.id === id); return mm ? mm.short : null; }).filter(Boolean); return { resId: res ? res.resId : null, partners }; };
     const depts = [...new Set(scoped.map(t => { const mm = MEMBERS.find(x => x.id === t.memberId); return mm ? mm.dept : null; }).filter(Boolean))];
-    const highPriorityItems = scoped.flatMap(t => { const mm = MEMBERS.find(x => x.id === t.memberId); return t.items.filter(i => detectPriority(i.text) === "HIGH" && i.status !== "Done").map(i => ({ mName: (mm === null || mm === void 0 ? void 0 : mm.name) || t.memberId, text: i.text, status: i.status, resId: (board.find(r => r.linkedItemId === i.id) || {}).resId || null })); });
+    const highPriorityItems = scoped.flatMap(t => { const mm = MEMBERS.find(x => x.id === t.memberId); return t.items.filter(i => effectivePriority(i) === "HIGH" && i.status !== "Done").map(i => ({ mName: (mm === null || mm === void 0 ? void 0 : mm.name) || t.memberId, text: i.text, status: i.status, resId: (board.find(r => r.linkedItemId === i.id) || {}).resId || null })); });
     const highOpenCount = highPriorityItems.length;
     const registerBlock = (title, showSubmittedOn) => React.createElement("div", { style: { fontFamily: "sans-serif", fontSize: 12.5, lineHeight: 1.5 } },
         React.createElement("div", { style: { textAlign: "center", fontWeight: 700, marginBottom: 2 } }, "DRA CORPORATE LEGAL DEPARTMENT"),
@@ -21710,7 +21867,7 @@ function GenerateReport({ setTab }) {
                     React.createElement("div", { style: { fontSize: 18, fontWeight: 800, color: "#070f1e" } }, v)))),
                 depts.map(dept => React.createElement("div", { key: dept, style: { marginBottom: 14 } },
                     React.createElement("div", { style: { fontSize: 11, fontWeight: 800, color: "#8a6b12", textTransform: "uppercase", letterSpacing: "1px", marginBottom: 6, borderBottom: "1px solid #f0e6c8", paddingBottom: 2 } }, dept),
-                    scoped.filter(t => { const mm = MEMBERS.find(x => x.id === t.memberId); return mm && mm.dept === dept; }).map(t => { const m = MEMBERS.find(x => x.id === t.memberId); const dCount = t.items.filter(i => i.status === "Done").length; const hasHigh = t.items.some(i => detectPriority(i.text) === "HIGH" && i.status !== "Done"); return React.createElement("div", { key: t.id, style: { display: "flex", justifyContent: "space-between", padding: "4px 0", fontSize: 12, borderBottom: "1px solid #f7f7f7" } },
+                    scoped.filter(t => { const mm = MEMBERS.find(x => x.id === t.memberId); return mm && mm.dept === dept; }).map(t => { const m = MEMBERS.find(x => x.id === t.memberId); const dCount = t.items.filter(i => i.status === "Done").length; const hasHigh = t.items.some(i => effectivePriority(i) === "HIGH" && i.status !== "Done"); return React.createElement("div", { key: t.id, style: { display: "flex", justifyContent: "space-between", padding: "4px 0", fontSize: 12, borderBottom: "1px solid #f7f7f7" } },
                         React.createElement("div", null,
                             React.createElement("span", { style: { fontWeight: 700 } }, m.name),
                             ` \u2014 ${t.items.length} task${t.items.length === 1 ? "" : "s"}`,
@@ -22587,6 +22744,23 @@ function App() {
     const [tab, setTab] = useState("myday");
     const [pendingFilter, setPendingFilter] = useState(null);
     const goTo = (tabId, value = null) => { if (value !== null) setPendingFilter({ tab: tabId, value }); setTab(tabId); };
+    const navHistoryRef = useRef(["myday"]);
+    const navIndexRef = useRef(0);
+    const navSkipRef = useRef(false);
+    const [navTick, setNavTick] = useState(0);
+    useEffect(() => {
+        if (navSkipRef.current) { navSkipRef.current = false; return; }
+        navHistoryRef.current = navHistoryRef.current.slice(0, navIndexRef.current + 1);
+        if (navHistoryRef.current[navHistoryRef.current.length - 1] !== tab) {
+            navHistoryRef.current.push(tab);
+            navIndexRef.current = navHistoryRef.current.length - 1;
+        }
+        setNavTick(n => n + 1);
+    }, [tab]);
+    const canGoBack = navIndexRef.current > 0;
+    const canGoForward = navIndexRef.current < navHistoryRef.current.length - 1;
+    const goBack = () => { if (navIndexRef.current > 0) { navIndexRef.current -= 1; navSkipRef.current = true; setTab(navHistoryRef.current[navIndexRef.current]); setNavTick(n => n + 1); } };
+    const goForward = () => { if (navIndexRef.current < navHistoryRef.current.length - 1) { navIndexRef.current += 1; navSkipRef.current = true; setTab(navHistoryRef.current[navIndexRef.current]); setNavTick(n => n + 1); } };
     const [searchOpen, setSearchOpen] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
     const [viewMode, setViewModeState] = useState(() => { try { return localStorage.getItem("dra.viewmode") || "auto"; } catch (_a) { return "auto"; } });
@@ -22643,7 +22817,7 @@ function App() {
             case "mom": { if (!isSuperAdminSession(session)) return React.createElement(AccessDenied, null); return React.createElement(MoMLibrary, { session: session }); }
             case "kra": return React.createElement(KraKpi, { session: session });
             case "todo": return React.createElement(TaskOfTheDay, { session: session });
-            case "tasks": return React.createElement(DailyTasks, { session: session, initialFilter: (pendingFilter && pendingFilter.tab === "tasks") ? pendingFilter.value : null, onFilterConsumed: () => setPendingFilter(null) });
+            case "tasks": return React.createElement(DailyTasks, { session: session, initialFilter: (pendingFilter && pendingFilter.tab === "tasks") ? pendingFilter.value : null, onFilterConsumed: () => setPendingFilter(null), setTab: setTab });
             case "board": { const lvl=getUserLevel(session); if(lvl==="L3") return React.createElement(AccessDenied,null); return React.createElement(ResolutionBoard, { session: session, initialFilter: (pendingFilter && pendingFilter.tab === "board") ? pendingFilter.value : null, onFilterConsumed: () => setPendingFilter(null) }); }
             case "movement": return React.createElement(MovementRegister, { session: session });
             case "report": return React.createElement(WorkReport, { session: session, initialFilter: (pendingFilter && pendingFilter.tab === "report") ? pendingFilter.value : null, onFilterConsumed: () => setPendingFilter(null) });
@@ -22675,6 +22849,9 @@ function App() {
                     React.createElement("div", null,
                         React.createElement("div", { style: { fontFamily: "Cormorant Garamond,serif", fontSize: 18, color: "#c9a227", lineHeight: 1 } }, "DRA Legal"),
                         React.createElement("div", { style: { fontSize: 8, letterSpacing: "1.5px", color: "rgba(201,162,39,.6)" } }, "CORPORATE LEGAL DEPT"))),
+                React.createElement("div", { style: { display: "flex", gap: 6, marginTop: 10 } },
+                    React.createElement("button", { onClick: goBack, disabled: !canGoBack, title: "Back", style: { flex: 1, background: "transparent", border: "1px solid rgba(201,162,39,.25)", borderRadius: 8, padding: "5px 0", color: canGoBack ? "#c9a227" : "rgba(138,155,188,.3)", cursor: canGoBack ? "pointer" : "default", fontSize: 13 } }, "\u2190 Back"),
+                    React.createElement("button", { onClick: goForward, disabled: !canGoForward, title: "Forward", style: { flex: 1, background: "transparent", border: "1px solid rgba(201,162,39,.25)", borderRadius: 8, padding: "5px 0", color: canGoForward ? "#c9a227" : "rgba(138,155,188,.3)", cursor: canGoForward ? "pointer" : "default", fontSize: 13 } }, "Forward \u2192")),
                 React.createElement("div", { style: { fontSize: 8, letterSpacing: "2px", color: "rgba(201,162,39,.45)", marginTop: 8 } }, TAGLINE)),
             React.createElement("nav", { style: { flex: 1, overflowY: "auto", padding: 8 } }, (() => { const vt = visibleTabs(session); let lastGroup = null; return vt.map(t => { const showHeader = t.group !== lastGroup; lastGroup = t.group; return React.createElement(React.Fragment, { key: t.id },
                 showHeader && React.createElement("div", { style: { fontSize: 9, textTransform: "uppercase", letterSpacing: "1.5px", color: "rgba(201,162,39,.55)", padding: "14px 12px 6px", fontWeight: 700 } }, t.group),
@@ -22696,9 +22873,12 @@ function App() {
                     "Sign out"))),
         React.createElement("main", { style: { flex: 1, display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden" } },
             React.createElement("header", { className: "mobile-header", style: { position: "sticky", top: 0, zIndex: 10, background: "rgba(15,32,64,.97)", borderBottom: "1px solid rgba(201,162,39,.15)", padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", backdropFilter: "blur(10px)" } },
-                React.createElement("div", null,
-                    React.createElement("div", { style: { fontFamily: "Cormorant Garamond,serif", fontSize: 20, color: "#c9a227", lineHeight: 1 } }, "DRA Legal"),
-                    React.createElement("div", { style: { fontSize: 8, letterSpacing: "2px", color: "rgba(201,162,39,.5)" } }, TAGLINE)),
+                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
+                    React.createElement("button", { onClick: goBack, disabled: !canGoBack, title: "Back", style: { background: "transparent", border: "1px solid rgba(201,162,39,.25)", borderRadius: 8, padding: "5px 8px", color: canGoBack ? "#c9a227" : "rgba(138,155,188,.3)", cursor: canGoBack ? "pointer" : "default", fontSize: 14 } }, "\u2190"),
+                    React.createElement("button", { onClick: goForward, disabled: !canGoForward, title: "Forward", style: { background: "transparent", border: "1px solid rgba(201,162,39,.25)", borderRadius: 8, padding: "5px 8px", color: canGoForward ? "#c9a227" : "rgba(138,155,188,.3)", cursor: canGoForward ? "pointer" : "default", fontSize: 14 } }, "\u2192"),
+                    React.createElement("div", null,
+                        React.createElement("div", { style: { fontFamily: "Cormorant Garamond,serif", fontSize: 20, color: "#c9a227", lineHeight: 1 } }, "DRA Legal"),
+                        React.createElement("div", { style: { fontSize: 8, letterSpacing: "2px", color: "rgba(201,162,39,.5)" } }, TAGLINE))),
                 React.createElement("div", { style: { display: "flex", gap: 8 } },
                     React.createElement("button", { onClick: () => setViewMode(viewMode === "desktop" ? "auto" : "desktop"), title: "Switch to desktop layout", style: { background: "transparent", border: "1px solid rgba(201,162,39,.25)", borderRadius: 8, padding: "5px 8px", color: "#c9a227", cursor: "pointer", display: "flex", alignItems: "center", fontSize: 13 } }, "\uD83D\uDDA5\uFE0F"),
                     React.createElement("button", { onClick: () => setSearchOpen(true), style: { background: "transparent", border: "1px solid rgba(201,162,39,.25)", borderRadius: 8, padding: "5px 8px", color: "#c9a227", cursor: "pointer", display: "flex", alignItems: "center" } }, I.search),
